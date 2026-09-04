@@ -42,6 +42,8 @@ grep -Fq 'PY5HC/AETHERIS_NODE_AGENT' "$BUILDER" || fail builder-repository
 grep -Fq 'EXPECTED_GOVERNANCE' "$BUILDER" || fail builder-governance
 grep -Fq '"kind": "wheel"' "$BUILDER" || fail builder-artifact
 grep -Fq 'python3 -m pip wheel --no-deps' "$BUILDER" || fail builder-wheel
+grep -Fq 'realpath -m' "$BUILDER" || fail builder-path-resolution
+grep -Fq 'release id already exists' "$BUILDER" || fail builder-immutable-output
 if grep -Eq 'systemctl (enable|start|restart|daemon-reload)|useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)' "$BUILDER"; then fail builder-live-mutation; fi
 pass 'repository-only release builder boundary'
 actual=$(git -C "$ROOT_DIR" ls-files --stage -- scripts/build-node-agent-release.sh | awk 'NR==1{print $1}')

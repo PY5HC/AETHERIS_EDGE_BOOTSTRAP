@@ -20,7 +20,12 @@ case "$RELEASE_OUTPUT" in
     fail 'release output is a live or user authority path' ;;
 esac
 case "$RELEASE_OUTPUT" in /*) ;; *) fail 'release output must be absolute';; esac
-for tool in git python3 sha256sum install mktemp; do need "$tool"; done
+for tool in git python3 sha256sum install mktemp realpath; do need "$tool"; done
+RELEASE_OUTPUT="$(realpath -m "$RELEASE_OUTPUT")"
+case "$RELEASE_OUTPUT" in
+  /opt|/opt/*|/etc|/etc/*|/var|/var/*|/run|/run/*|/home|/home/*)
+    fail 'resolved release output is a live or user authority path' ;;
+esac
 SOURCE_REMOTE="$(git -C "$SOURCE_DIR" remote get-url origin 2>/dev/null || true)"
 case "$SOURCE_REMOTE" in *PY5HC/AETHERIS_NODE_AGENT*) ;; *) fail 'source origin mismatch';; esac
 SOURCE_COMMIT="$(git -C "$SOURCE_DIR" rev-parse HEAD 2>/dev/null)" || fail source-commit
@@ -55,6 +60,7 @@ PY
 )"
 EXECUTABLE="$BUILD_DIR/venv/bin/aetheris-node-agent"
 [ -x "$EXECUTABLE" ] || fail console-script-missing
+[ ! -e "$RELEASE_OUTPUT/$RELEASE_ID" ] || fail 'release id already exists'
 mkdir -p "$RELEASE_OUTPUT/$RELEASE_ID"/{bin,metadata,source}
 RELEASE_ROOT="$RELEASE_OUTPUT/$RELEASE_ID"
 install -m 0755 "$EXECUTABLE" "$RELEASE_ROOT/bin/aetheris-node-agent"
