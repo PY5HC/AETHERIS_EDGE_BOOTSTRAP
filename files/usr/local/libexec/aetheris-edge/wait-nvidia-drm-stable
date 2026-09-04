@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+TIMEOUT_SECONDS="${AETHERIS_DRM_TIMEOUT_SECONDS:-30}"
+STABLE_POLLS="${AETHERIS_DRM_STABLE_POLLS:-3}"
+POLL_INTERVAL="${AETHERIS_DRM_POLL_INTERVAL:-0.5}"
+NVIDIA_PLATFORM_TAG="${AETHERIS_NVIDIA_DRM_ID_PATH:-platform-13800000.display}"
+
+log() {
+    printf 'aetheris-drm-stable: %s\n' "$*" >&2
+}
+
+snapshot() {
+    find /dev/dri -maxdepth 1 -type c \
+        \( -name 'card*' -o -name 'renderD*' \) \
+        -printf '%f:%T@\n' 2>/dev/null | sort
+}
+
+nvidia_drm_ready() {
+    local d props devname
+    local have_card=0
+    local have_render=0
+
+    for d in /sys/class/drm/card* /sys/class/drm/renderD*; do
+        [[ -e "$d" ]] || continue
+        props="$(udevadm info --query=property --path="$(readlink -f "$d")" 2>/dev/null || true)"
+        grep -q "^ID_PATH=${NVIDIA_PLATFORM_TAG}$" <<<"$props" || continue
+        devname="$(sed -n 's/^DEVNAME=//p' <<<"$props" | head -n1)"
+        [[ -n "$devname" && -e "$devname" ]] || continue
+        [[ "$devname" == /dev/dri/card* ]] && have_card=1
+        [[ "$devname" == /dev/dri/renderD* ]] && have_render=1
+    done
+
+    [[ "$have_card" -eq 1 && "$have_render" -eq 1 ]]
+}
+
+start="$(date +%s)"
+stable=0
+previous=""
+
+while true; do
+    now="$(date +%s)"
+    if (( now - start >= TIMEOUT_SECONDS )); then
+        log "timeout waiting for stable NVIDIA DRM topology"
+        ls -la /dev/dri >&2 2>/dev/null || true
+        exit 1
+    fi
+
+    if ! nvidia_drm_ready; then
+        stable=0
+        previous=""
+        sleep "$POLL_INTERVAL"
+        continue
+    fi
+
+    udevadm settle --timeout=5 || true
+
+    current="$(snapshot)"
+    if [[ -n "$current" && "$current" == "$previous" ]]; then
+        stable=$((stable + 1))
+    else
+        stable=1
+        previous="$current"
+    fi
+
+    if (( stable >= STABLE_POLLS )); then
+        log "stable NVIDIA DRM topology confirmed"
+        printf '%s\n' "$current" >&2
+        exit 0
+    fi
+
+    sleep "$POLL_INTERVAL"
+done
