@@ -1,0 +1,39 @@
+# G3.2 contract template. This file is intentionally not an installable unit.
+# A release gate must replace the token with a verified absolute executable.
+[Unit]
+Description=AETHERIS Node Agent
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=60s
+StartLimitBurst=5
+
+# Unresolved by design: materialization must reject this template.
+ConditionPathIsExecutable=@AETHERIS_NODE_EXECSTART@
+
+[Service]
+Type=simple
+User=aetheris-node
+Group=aetheris
+WorkingDirectory=/opt/aetheris/current
+ExecStart=@AETHERIS_NODE_EXECSTART@
+Restart=on-failure
+RestartSec=10s
+RuntimeDirectory=aetheris/aetheris-node
+RuntimeDirectoryMode=0750
+StateDirectory=aetheris/node/aetheris-node
+StateDirectoryMode=0750
+StandardOutput=journal
+StandardError=journal
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+UMask=0027
