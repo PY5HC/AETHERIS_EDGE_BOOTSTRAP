@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "node_id": "{{NODE_ID}}",
+  "node_role": "{{NODE_ROLE}}",
+  "platform": {
+    "family": "nvidia-jetson",
+    "model": "{{PLATFORM}}",
+    "architecture": "{{ARCH}}"
+  },
+  "capabilities": {
+    "cuda": {
+      "available": true,
+      "version": "{{CUDA_VERSION}}"
+    },
+    "cudnn": {
+      "available": true,
+      "version": "{{CUDNN_VERSION}}"
+    },
+    "tensorrt": {
+      "available": true,
+      "version": "{{TENSORRT_VERSION}}"
+    },
+    "vpi": {
+      "available": true,
+      "version": "{{VPI_VERSION}}"
+    },
+    "nvidia_container_runtime": {
+      "available": true,
+      "cdi": true
+    },
+    "docker": {
+      "available": true,
+      "rootless": false
+    },
+    "node_agent": {
+      "available": false,
+      "state": "not_installed"
+    },
+    "sky": {
+      "available": false,
+      "state": "not_installed"
+    },
+    "rf": {
+      "available": false,
+      "state": "not_installed"
+    },
+    "local_ai": {
+      "available": false,
+      "state": "not_installed"
+    }
+  }
+}
