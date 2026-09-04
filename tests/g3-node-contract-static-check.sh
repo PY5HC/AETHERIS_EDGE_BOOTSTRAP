@@ -30,8 +30,30 @@ python3 -m json.tool "$TMP_DIR/capabilities.json" >/dev/null && pass 'fixture JS
 first=$(grep -nE 'groupadd|install -d|systemd-tmpfiles' "$APPLY"|head -n1|cut -d: -f1); last=$(grep -n 'python3 -m json.tool' "$APPLY"|tail -n1|cut -d: -f1); [ "$last" -lt "$first" ] && pass 'fail-before-mutation ordering' || fail 'mutation ordering'
 # Existing root/minimal-PATH CUDA contract.
 grep -q 'NVCC_BIN=""' "$APPLY" && grep -q '/usr/local/cuda/bin/nvcc' "$APPLY" && ! grep -nE '^[[:space:]]*nvcc[[:space:]]+--version' "$APPLY" && pass 'root/minimal-PATH CUDA discovery' || fail 'CUDA discovery'
-for f in docs/G3.0-node-bootstrap-contract.md files/usr/lib/tmpfiles.d/aetheris.conf templates/capabilities.json.template templates/node-identity.env.template; do [ "$(stat -c %a "$ROOT_DIR/$f")" = 644 ] || fail "mode $f"; done
-for f in scripts/apply-node-contract.sh scripts/verify-node-contract.sh tests/g3-node-contract-static-check.sh; do [ "$(stat -c %a "$ROOT_DIR/$f")" = 755 ] || fail "mode $f"; done; pass 'file modes'
+git_mode_is(){
+    local repo="$1" path="$2" expected="$3" actual
+    actual="$(git -C "$repo" ls-files --stage -- "$path" | awk 'NR == 1 { print $1 }')"
+    [ "$actual" = "$expected" ]
+}
+for f in docs/G3.0-node-bootstrap-contract.md files/usr/lib/tmpfiles.d/aetheris.conf templates/capabilities.json.template templates/node-identity.env.template; do
+    git_mode_is "$ROOT_DIR" "$f" 100644 || fail "Git mode $f"
+done
+for f in scripts/apply-node-contract.sh scripts/verify-node-contract.sh tests/g3-node-contract-static-check.sh; do
+    git_mode_is "$ROOT_DIR" "$f" 100755 || fail "Git mode $f"
+done
+pass 'canonical Git index modes'
+# Runtime permission assertions remain explicit and are independent of checkout modes.
+grep -q 'install -o root -g root -m 0644' "$APPLY" || fail 'tmpfiles install mode'
+grep -q 'install -o root -g aetheris -m 0640.*TMP_IDENTITY' "$APPLY" || fail 'identity install mode'
+grep -q 'install -o root -g aetheris -m 0640.*TMP_CAPABILITIES' "$APPLY" || fail 'capabilities install mode'
+pass 'materialization permission contract'
+# Isolated index fixtures prove both accepted modes and inverse-mode rejection.
+MODE_FIXTURE="$TMP_DIR/mode-fixture"; mkdir "$MODE_FIXTURE"; git -C "$MODE_FIXTURE" init -q; git -C "$MODE_FIXTURE" config user.email test@example.invalid; git -C "$MODE_FIXTURE" config user.name test
+: >"$MODE_FIXTURE/nonexec"; : >"$MODE_FIXTURE/executable"; chmod 644 "$MODE_FIXTURE/nonexec"; chmod 755 "$MODE_FIXTURE/executable"; git -C "$MODE_FIXTURE" add nonexec executable
+git_mode_is "$MODE_FIXTURE" nonexec 100644 && pass 'fixture 100644 accepted' || fail 'fixture 100644 accepted'
+git_mode_is "$MODE_FIXTURE" executable 100755 && pass 'fixture 100755 accepted' || fail 'fixture 100755 accepted'
+if git_mode_is "$MODE_FIXTURE" nonexec 100755; then fail 'non-executable 100755 rejected'; else pass 'non-executable 100755 rejected'; fi
+if git_mode_is "$MODE_FIXTURE" executable 100644; then fail 'executable 100644 rejected'; else pass 'executable 100644 rejected'; fi
 ! grep -RIn '[[:blank:]]$' "$ROOT_DIR/docs/G3.0-node-bootstrap-contract.md" "$ROOT_DIR/files/usr/lib/tmpfiles.d/aetheris.conf" "$ROOT_DIR/scripts/apply-node-contract.sh" "$ROOT_DIR/scripts/verify-node-contract.sh" "$ROOT_DIR/templates/node-identity.env.template" "$ROOT_DIR/templates/capabilities.json.template" "$ROOT_DIR/tests/g3-node-contract-static-check.sh" && pass 'whitespace' || fail 'trailing whitespace'
 # Execute the real apply discovery/render/validation path with its explicit
 # validation-only boundary; no groupadd/install/tmpfiles operation is reached.
