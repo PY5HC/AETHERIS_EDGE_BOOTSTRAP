@@ -11,5 +11,6 @@
   "dependencies": {"provenance": "@DEPENDENCY_PROVENANCE@", "lock_reference": "@LOCK_REFERENCE@"},
   "entrypoint": {"relative_path": "@ENTRYPOINT_RELATIVE_PATH@", "runner_kind": "@RUNNER_KIND@"},
   "health": {"liveness_path": "@LIVENESS_PATH@", "readiness_path": "@READINESS_PATH@"},
-  "activation": {"requires_hash_verification": true, "requires_readiness_probe": true, "rollback_release_required": true}
+  "activation": {"requires_hash_verification": true, "requires_readiness_probe": true, "rollback_release_required": true},
+  "governance": {"repository": "PY5HC/AETHERIS_GOVERNANCE", "revision": "@GOVERNANCE_REVISION@", "governance_version": "@GOVERNANCE_VERSION@", "profile": "NOT_YET_ESTABLISHED", "contract_version": "@GOVERNANCE_CONTRACT_VERSION@"}
 }
