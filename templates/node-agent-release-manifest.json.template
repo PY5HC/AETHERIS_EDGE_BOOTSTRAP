@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "release_id": "@RELEASE_ID@",
+  "repository": "PY5HC/AETHERIS_NODE_AGENT",
+  "source_commit": "@SOURCE_COMMIT@",
+  "build_timestamp_utc": "@BUILD_TIMESTAMP_UTC@",
+  "architecture": "aarch64",
+  "python_version": "@PYTHON_VERSION@",
+  "package": {"name": "aetheris-node-agent", "version": "@PACKAGE_VERSION@"},
+  "artifact": {"kind": "@ARTIFACT_KIND@", "sha256": "@ARTIFACT_SHA256@", "release_root": "/opt/aetheris/releases"},
+  "dependencies": {"provenance": "@DEPENDENCY_PROVENANCE@", "lock_reference": "@LOCK_REFERENCE@"},
+  "entrypoint": {"relative_path": "@ENTRYPOINT_RELATIVE_PATH@", "runner_kind": "@RUNNER_KIND@"},
+  "health": {"liveness_path": "@LIVENESS_PATH@", "readiness_path": "@READINESS_PATH@"},
+  "activation": {"requires_hash_verification": true, "requires_readiness_probe": true, "rollback_release_required": true}
+}
