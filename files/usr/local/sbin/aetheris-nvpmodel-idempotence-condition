@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+
+set -u
+
+NVPMODEL_BIN="${AETHERIS_NVPMODEL_BIN:-/usr/sbin/nvpmodel}"
+STATUS_FILE="${AETHERIS_NVPMODEL_STATUS_FILE:-/var/lib/nvpmodel/status}"
+
+# ExecCondition semantics:
+#
+#   exit 1 -> current mode already equals persisted mode:
+#             skip NVIDIA ExecStart without marking the unit failed.
+#
+#   exit 0 -> allow the original NVIDIA ExecStart to run.
+#
+# Any inability to determine state deliberately falls back to the
+# vendor implementation rather than suppressing it.
+
+if [ ! -x "$NVPMODEL_BIN" ]; then
+    echo "AETHERIS_NVPMODEL_CONDITION=VENDOR_FALLBACK reason=nvpmodel_unavailable"
+    exit 0
+fi
+
+if [ ! -r "$STATUS_FILE" ]; then
+    echo "AETHERIS_NVPMODEL_CONDITION=VENDOR_FALLBACK reason=status_unavailable"
+    exit 0
+fi
+
+QUERY_OUTPUT="$("$NVPMODEL_BIN" -q 2>/dev/null)"
+QUERY_RC=$?
+
+if [ "$QUERY_RC" -ne 0 ]; then
+    echo "AETHERIS_NVPMODEL_CONDITION=VENDOR_FALLBACK reason=query_failed rc=$QUERY_RC"
+    exit 0
+fi
+
+CURRENT_MODE_ID="$(
+    printf '%s\n' "$QUERY_OUTPUT" |
+    tail -n 1 |
+    tr -d '[:space:]'
+)"
+
+case "$CURRENT_MODE_ID" in
+    ''|*[!0-9]*)
+        echo "AETHERIS_NVPMODEL_CONDITION=VENDOR_FALLBACK reason=current_mode_invalid"
+        exit 0
+        ;;
+esac
+
+STATUS_RAW="$(cat "$STATUS_FILE" 2>/dev/null)"
+STATUS_RC=$?
+
+if [ "$STATUS_RC" -ne 0 ]; then
+    echo "AETHERIS_NVPMODEL_CONDITION=VENDOR_FALLBACK reason=status_read_failed rc=$STATUS_RC"
+    exit 0
+fi
+
+PERSISTED_MODE_ID="$(
+    printf '%s\n' "$STATUS_RAW" |
+    sed -n 's/^pmode:0*\([0-9][0-9]*\)$/\1/p'
+)"
+
+case "$PERSISTED_MODE_ID" in
+    ''|*[!0-9]*)
+        echo "AETHERIS_NVPMODEL_CONDITION=VENDOR_FALLBACK reason=persisted_mode_invalid"
+        exit 0
+        ;;
+esac
+
+if [ "$CURRENT_MODE_ID" = "$PERSISTED_MODE_ID" ]; then
+    echo \
+        "AETHERIS_NVPMODEL_CONDITION=SKIP_REDUNDANT_APPLY current=$CURRENT_MODE_ID persisted=$PERSISTED_MODE_ID"
+
+    exit 1
+fi
+
+echo \
+    "AETHERIS_NVPMODEL_CONDITION=ALLOW_VENDOR_APPLY current=$CURRENT_MODE_ID persisted=$PERSISTED_MODE_ID"
+
+exit 0
