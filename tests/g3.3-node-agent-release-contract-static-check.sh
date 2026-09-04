@@ -33,4 +33,17 @@ if AETHERIS_RELEASE_MANIFEST="$fixture_dir/governance.json" "$VERIFY" >/dev/null
 pass 'manifest positive and negative fixtures'
 for pair in '100644 docs/G3.3-governed-node-agent-release-model.md' '100644 schemas/node-agent-release-manifest.schema.json' '100644 templates/node-agent-release-manifest.json.template' '100755 scripts/verify-node-agent-release-contract.sh' '100755 tests/g3.3-node-agent-release-contract-static-check.sh'; do set -- $pair; actual=$(git -C "$ROOT_DIR" ls-files --stage -- "$2" | awk 'NR==1{print $1}'); [ "$actual" = "$1" ] || fail "mode $2"; done
 pass 'canonical Git modes'
+BUILDER="$ROOT_DIR/scripts/build-node-agent-release.sh"
+[ -x "$BUILDER" ] || fail builder-missing
+grep -Fq 'NODE_AGENT_SOURCE_DIR' "$BUILDER" || fail builder-source-input
+grep -Fq 'AETHERIS_RELEASE_OUTPUT' "$BUILDER" || fail builder-output-input
+grep -Fq 'requirements.lock' "$BUILDER" || fail builder-lock
+grep -Fq 'PY5HC/AETHERIS_NODE_AGENT' "$BUILDER" || fail builder-repository
+grep -Fq 'EXPECTED_GOVERNANCE' "$BUILDER" || fail builder-governance
+grep -Fq '"kind": "wheel"' "$BUILDER" || fail builder-artifact
+grep -Fq 'python3 -m pip wheel --no-deps' "$BUILDER" || fail builder-wheel
+if grep -Eq 'systemctl (enable|start|restart|daemon-reload)|useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)' "$BUILDER"; then fail builder-live-mutation; fi
+pass 'repository-only release builder boundary'
+actual=$(git -C "$ROOT_DIR" ls-files --stage -- scripts/build-node-agent-release.sh | awk 'NR==1{print $1}')
+[ "$actual" = 100755 ] || fail builder-mode
 echo G3_3_NODE_AGENT_RELEASE_CONTRACT_STATIC_CHECK=PASS
