@@ -78,7 +78,9 @@ getent group aetheris >/dev/null || fail aetheris-group
 if getent group docker | grep -Eq '(^|,)aetheris-node(,|$)'; then fail docker-membership; fi
 if sudo systemctl --failed --no-legend --plain | grep -q .; then fail failed-units; fi
 POWER_QUERY="$(sudo /usr/sbin/nvpmodel -q 2>/dev/null)" || fail nvpmodel-query; grep -Fq 'NV Power Mode: MAXN_SUPER' <<<"$POWER_QUERY" || fail power-profile; grep -Eq '^2$' <<<"$POWER_QUERY" || fail power-mode
-sudo nvidia-ctk cdi list 2>/dev/null | grep -q NVIDIA || fail cdi; sudo systemctl get-default | grep -Fxq multi-user.target || fail default-target
+CDI_OUTPUT="$(sudo nvidia-ctk cdi list 2>&1)" || { printf '%s\n' "$CDI_OUTPUT" >&2; fail cdi-query; }
+grep -Eq '^nvidia\.com/gpu=' <<<"$CDI_OUTPUT" || { printf '%s\n' "$CDI_OUTPUT" >&2; fail cdi-gpu; }
+sudo systemctl get-default | grep -Fxq multi-user.target || fail default-target
 [ ! -e /run/aetheris/aetheris-node ] || fail runtime-leaf-present; [ ! -e /var/lib/aetheris/node/aetheris-node ] || fail state-leaf-present
 if sudo test -e "$UNIT_PATH"; then fail conflicting-unit; fi
 expect_g3_hash(){ [ "$(sudo sha256sum "$1"|awk '{print $1}')" = "$2" ] || fail "hash:$1"; }
