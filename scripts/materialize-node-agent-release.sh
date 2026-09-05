@@ -171,7 +171,7 @@ exact_loopback_listener(){
   printf '%s\n' "$sockets" | awk '$4 == "127.0.0.1:8000" { found=1 } END { exit(found ? 0 : 1) }' || return 1
   if printf '%s\n' "$sockets" | awk '$4 == "0.0.0.0:8000" || $4 == "[::]:8000" { found=1 } END { exit(found ? 0 : 1) }'; then return 1; fi
 }
-convergence_elapsed(){ CONVERGENCE_ELAPSED_SEC=$(( $(date +%s) - CONVERGENCE_START_EPOCH )); }
+convergence_elapsed(){ printf -v CONVERGENCE_ELAPSED_SEC '%s' "$(( $(date +%s) - CONVERGENCE_START_EPOCH ))"; : "$CONVERGENCE_ELAPSED_SEC"; }
 poll_listener(){
   local deadline now
   CONVERGENCE_START_EPOCH="$(date +%s)"; deadline=$((CONVERGENCE_START_EPOCH + CONVERGENCE_TIMEOUT_SEC))
