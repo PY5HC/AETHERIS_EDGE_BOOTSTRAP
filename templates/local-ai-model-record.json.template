@@ -9,7 +9,7 @@
   "artifact_format": "@ARTIFACT_FORMAT@",
   "artifact_digest": "sha256:@ARTIFACT_DIGEST@",
   "model_digest": "sha256:@MODEL_DIGEST@",
-  "parameter_count": 0,
+  "parameter_count": @PARAMETER_COUNT@,
   "quantization": "@QUANTIZATION@",
   "runtime_backend": "@RUNTIME_BACKEND@",
   "runtime_version": "@RUNTIME_VERSION@",

@@ -12,7 +12,7 @@ for name in ("local-ai-model-record.schema.json","local-ai-benchmark-record.sche
     data=json.loads((root/"schemas"/name).read_text())
     if data.get("additionalProperties") is not False: raise SystemExit("non-strict:"+name)
 template=(root/"templates/local-ai-model-record.json.template").read_text()
-for token in ("@MODEL_ID@","@MODEL_ROLE@","@UPSTREAM_MODEL@","@ARTIFACT_DIGEST@","@MODEL_DIGEST@","@RUNTIME_BACKEND@","@HARDWARE_CLASS@"):
+for token in ("@MODEL_ID@","@MODEL_ROLE@","@UPSTREAM_MODEL@","@ARTIFACT_DIGEST@","@MODEL_DIGEST@","@PARAMETER_COUNT@","@RUNTIME_BACKEND@","@HARDWARE_CLASS@"):
     if token not in template: raise SystemExit("missing-token:"+token)
 doc=(root/"docs/G4.1-local-ai-contract.md").read_text()
 for phrase in ("AETHERIS Local AI Contract","LOCAL_AI_SMALL","LOCAL_AI_MEDIUM","LOCAL_AI_EXPERIMENTAL","DISCOVERED","STAGED","VALIDATED","AVAILABLE","ACTIVE","DEGRADED","FAILED","RETIRED","AETHERIS SKY is deferred"):
