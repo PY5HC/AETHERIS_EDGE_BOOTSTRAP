@@ -41,6 +41,8 @@ python3 -m venv --copies "$BUILD_RELEASE/venv"
 EXEC_REL=venv/bin/aetheris-node-agent; EXEC="$BUILD_RELEASE/$EXEC_REL"; PYTHON_EXEC="$BUILD_RELEASE/venv/bin/python"
 [ -x "$EXEC" ] || fail entrypoint
 [ -x "$PYTHON_EXEC" ] || fail interpreter
+RUNTIME_PYTHON_LINK="venv/bin/python${PYTHON_VERSION%.*}"
+for runtime_exec in venv/bin/python venv/bin/python3 "$RUNTIME_PYTHON_LINK"; do [ -x "$BUILD_RELEASE/$runtime_exec" ] || fail "runtime-executable:$runtime_exec"; done
 "$PYTHON_EXEC" -c 'import aetheris_node_agent, aetheris_node_agent.runner' || fail runtime-import
 cat > "$EXEC" <<'SH'
 #!/bin/sh
@@ -64,7 +66,7 @@ PY
 )"
 python3 - "$BUILD_RELEASE/manifest.json" <<PY
 import json, sys
-d={"schema_version":"1.0","release_id":"$RELEASE_ID","repository":"PY5HC/AETHERIS_NODE_AGENT","source_commit":"$SOURCE_COMMIT","build_timestamp_utc":"$BUILD_TIMESTAMP_UTC","architecture":"aarch64","python_version":"$PYTHON_VERSION","package":{"name":"aetheris-node-agent","version":"$PACKAGE_VERSION"},"artifact":{"kind":"wheel","sha256":"$ARTIFACT_SHA","release_root":"/opt/aetheris/releases"},"dependencies":{"provenance":"requirements.lock:$LOCK_SHA","lock_reference":"metadata/requirements.lock"},"entrypoint":{"relative_path":"venv/bin/aetheris-node-agent","runner_kind":"project-runner"},"runtime":{"model":"release-venv","python_executable":"venv/bin/python"},"health":{"liveness_path":"/api/v1/health","readiness_path":"/api/v1/health"},"activation":{"requires_hash_verification":True,"requires_readiness_probe":True,"rollback_release_required":True},"governance":{"repository":"PY5HC/AETHERIS_GOVERNANCE","revision":"$EXPECTED_GOVERNANCE","governance_version":"1.3.0","profile":"NOT_YET_ESTABLISHED","contract_version":"1.0.0"}}
+d={"schema_version":"1.0","release_id":"$RELEASE_ID","repository":"PY5HC/AETHERIS_NODE_AGENT","source_commit":"$SOURCE_COMMIT","build_timestamp_utc":"$BUILD_TIMESTAMP_UTC","architecture":"aarch64","python_version":"$PYTHON_VERSION","package":{"name":"aetheris-node-agent","version":"$PACKAGE_VERSION"},"artifact":{"kind":"wheel","sha256":"$ARTIFACT_SHA","release_root":"/opt/aetheris/releases"},"dependencies":{"provenance":"requirements.lock:$LOCK_SHA","lock_reference":"metadata/requirements.lock"},"entrypoint":{"relative_path":"venv/bin/aetheris-node-agent","runner_kind":"project-runner"},"runtime":{"model":"release-venv","python_executable":"venv/bin/python","executables":["venv/bin/aetheris-node-agent","venv/bin/python","venv/bin/python3","$RUNTIME_PYTHON_LINK"]},"health":{"liveness_path":"/api/v1/health","readiness_path":"/api/v1/health"},"activation":{"requires_hash_verification":True,"requires_readiness_probe":True,"rollback_release_required":True},"governance":{"repository":"PY5HC/AETHERIS_GOVERNANCE","revision":"$EXPECTED_GOVERNANCE","governance_version":"1.3.0","profile":"NOT_YET_ESTABLISHED","contract_version":"1.0.0"}}
 with open(sys.argv[1],'w',encoding='utf-8') as f: json.dump(d,f,indent=2,sort_keys=True); f.write('\\n')
 PY
 python3 -m json.tool "$BUILD_RELEASE/manifest.json" >/dev/null
