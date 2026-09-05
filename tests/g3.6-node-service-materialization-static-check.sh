@@ -32,6 +32,9 @@ grep -Fq 'chmod 0750 "$STAGING_ROOT/$runtime_exec"' "$M" || fail executable-mode
 grep -Fq 'sudo -u aetheris-node' "$M" || fail service-user-runtime-probe
 grep -Fq 'CONVERGENCE=PASS' "$M" || fail convergence-mode
 grep -Fq 'systemd-analyze verify' "$M" || fail unit-prevalidation
+grep -Fq 'UNIT_TMP_DIR=' "$M" || fail canonical-unit-temp-directory
+grep -Fq 'UNIT_TMP="$UNIT_TMP_DIR/aetheris-node.service"' "$M" || fail canonical-unit-temp-basename
+! grep -Fq 'UNIT_TMP="$(mktemp --suffix=.service)"' "$M" || fail anonymous-unit-temp
 grep -Fq 'POST_START_VALIDATION=PASS' "$M" || fail post-start-validation
 grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-rollback-state
 grep -Fq 'journalctl -u aetheris-node.service' "$M" || fail journald-validation
