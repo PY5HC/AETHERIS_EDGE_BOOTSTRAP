@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "model_id": "@MODEL_ID@",
+  "model_role": ["@MODEL_ROLE@"],
+  "upstream_model": "@UPSTREAM_MODEL@",
+  "upstream_revision": "@UPSTREAM_REVISION@",
+  "source_uri": "@SOURCE_URI@",
+  "license": "@LICENSE@",
+  "artifact_format": "@ARTIFACT_FORMAT@",
+  "artifact_digest": "sha256:@ARTIFACT_DIGEST@",
+  "model_digest": "sha256:@MODEL_DIGEST@",
+  "parameter_count": 0,
+  "quantization": "@QUANTIZATION@",
+  "runtime_backend": "@RUNTIME_BACKEND@",
+  "runtime_version": "@RUNTIME_VERSION@",
+  "acquired_at": "@ACQUIRED_AT@",
+  "validated_at": "@VALIDATED_AT@",
+  "hardware_class": "@HARDWARE_CLASS@",
+  "validation_status": "UNVALIDATED"
+}

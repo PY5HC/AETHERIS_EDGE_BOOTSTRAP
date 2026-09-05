@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aetheris.invalid/schemas/local-ai-runtime-capabilities-1.0.json",
+  "title": "AETHERIS Local AI runtime capability declaration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "runtime_backend", "runtime_version", "capabilities", "health", "readiness"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "runtime_backend": {"type": "string", "minLength": 1},
+    "runtime_version": {"type": "string", "minLength": 1},
+    "capabilities": {"type": "object", "additionalProperties": false, "required": ["generation", "embedding", "reranking", "classification"], "properties": {"generation": {"type": "boolean"}, "embedding": {"type": "boolean"}, "reranking": {"type": "boolean"}, "classification": {"type": "boolean"}}},
+    "health": {"enum": ["PASS", "FAIL", "UNKNOWN"]},
+    "readiness": {"enum": ["PASS", "FAIL", "UNKNOWN"]}
+  }
+}
