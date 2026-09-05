@@ -27,6 +27,9 @@ grep -Fq 'failed-units' "$M" || fail failed-unit-preflight
 grep -Fq 'STAGING_ROOT=' "$M" || fail atomic-staging
 grep -Fq 'sudo mv -- "$STAGING_ROOT" "$RELEASE_ROOT"' "$M" || fail atomic-promotion
 grep -Fq 'verify_installed' "$M" || fail post-copy-verification
+grep -Fq 'EXECUTABLES=' "$M" || fail executable-mode-contract
+grep -Fq 'chmod 0750 "$STAGING_ROOT/$runtime_exec"' "$M" || fail executable-mode-preservation
+grep -Fq 'sudo -u aetheris-node' "$M" || fail service-user-runtime-probe
 grep -Fq 'CONVERGENCE=PASS' "$M" || fail convergence-mode
 grep -Fq 'systemd-analyze verify' "$M" || fail unit-prevalidation
 grep -Fq 'POST_START_VALIDATION=PASS' "$M" || fail post-start-validation
@@ -39,8 +42,8 @@ grep -Fq 'origin/main' "$M" || fail remote-authority
 grep -Fq 'repository-authority-delta' "$M" || fail authority-delta
 grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
 grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
-grep -Fq '20260905-node-agent-r4' "$M" || fail corrected-release-authority
-grep -Fq 'bfb47c0cfa590c52a8c26e09e2ae1dce4c69bf15b74c06e24241bc49966027ba' "$M" || fail corrected-manifest-authority
+grep -Fq '20260905-node-agent-r5' "$M" || fail corrected-release-authority
+grep -Fq 'ffc06dd03e387ee234951926fe0e22822bc3f9cd4365c6548dca639c85bd6daa' "$M" || fail corrected-manifest-authority
 for needle in 'RELEASE_PROMOTED=NO' 'UNIT_ENABLED=NO' 'SERVICE_STARTED=NO' 'UNIT_TMP_SHA=' 'sudo systemctl stop aetheris-node.service' 'sudo systemctl disable aetheris-node.service' 'RELEASE_PRESERVED=YES' 'PLATFORM_REGRESSION=' 'ROLLBACK_RESULT='; do grep -Fq "$needle" "$M" || fail "rollback $needle"; done
 for needle in 'fail unit-verify' 'fail service-enable' 'fail service-start' 'fail listener' 'fail health' 'fail post-start-failed-units'; do grep -Fq "$needle" "$M" || fail "failure-injection phase $needle"; done
 

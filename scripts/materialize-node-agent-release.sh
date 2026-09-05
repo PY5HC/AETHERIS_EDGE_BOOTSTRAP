@@ -9,8 +9,8 @@ LIVE_APPLY="${AETHERIS_LIVE_APPLY:-NO}"
 CONVERGENCE="${AETHERIS_CONVERGENCE:-NO}"
 EXPECTED_BOOTSTRAP_MAIN="56ab37d5d216c9fab26f97487068d22d8e706286"
 AUTHORITY_TAG="g3.6-final-materializer"
-EXPECTED_MANIFEST_SHA="bfb47c0cfa590c52a8c26e09e2ae1dce4c69bf15b74c06e24241bc49966027ba"
-EXPECTED_RELEASE_ID="20260905-node-agent-r4"
+EXPECTED_MANIFEST_SHA="ffc06dd03e387ee234951926fe0e22822bc3f9cd4365c6548dca639c85bd6daa"
+EXPECTED_RELEASE_ID="20260905-node-agent-r5"
 EXPECTED_LOCK_SHA="ce7d86147a73c9b701f57a0d7e11f968c9df9eae5c0430a3064171df64033b01"
 UNIT_PATH=/etc/systemd/system/aetheris-node.service
 fail(){ printf 'FAIL %s\n' "$1" >&2; exit 1; }
@@ -50,14 +50,14 @@ if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',rid): raise SystemExit('
 rel=d.get('entrypoint',{}).get('relative_path','')
 if not re.fullmatch(r'(?:bin|venv/bin)/[A-Za-z0-9._/-]+',rel) or '..' in rel: raise SystemExit('entrypoint')
 if d.get('entrypoint', {}).get('runner_kind') != 'project-runner': raise SystemExit('runner')
-if d.get('runtime') != {'model':'release-venv','python_executable':'venv/bin/python'}: raise SystemExit('runtime')
+if d.get('runtime') != {'model':'release-venv','python_executable':'venv/bin/python','executables':['venv/bin/aetheris-node-agent','venv/bin/python','venv/bin/python3','venv/bin/python3.12']}: raise SystemExit('runtime')
 if d.get('artifact',{}).get('release_root') != '/opt/aetheris/releases': raise SystemExit('release-root')
 if d.get('health',{}).get('liveness_path') != '/api/v1/health' or d.get('health',{}).get('readiness_path') != '/api/v1/health': raise SystemExit('health')
 if d.get('activation') != {'requires_hash_verification':True,'requires_readiness_probe':True,'rollback_release_required':True}: raise SystemExit('activation')
-print(rid); print(rel); print(d['artifact']['sha256']); print(d['dependencies']['provenance'])
+print(rid); print(rel); print(d['artifact']['sha256']); print(d['dependencies']['provenance']); print(*d['runtime']['executables'], sep='\n')
 PY
 ) || fail manifest-semantics
-RELEASE_ID="${FACTS[0]}"; EXEC_REL="${FACTS[1]}"; EXPECTED_ARTIFACT_SHA="${FACTS[2]}"; LOCK_PROVENANCE="${FACTS[3]}"
+RELEASE_ID="${FACTS[0]}"; EXEC_REL="${FACTS[1]}"; EXPECTED_ARTIFACT_SHA="${FACTS[2]}"; LOCK_PROVENANCE="${FACTS[3]}"; EXECUTABLES=("${FACTS[@]:4}")
 [ "$RELEASE_ID" = "$EXPECTED_RELEASE_ID" ] || fail release-id-authority
 WHEEL="$(find "$STAGED_RELEASE/metadata" -maxdepth 1 -type f -name '*.whl' -print -quit)"; [ -n "$WHEEL" ] || fail wheel
 [ "$(sha256sum "$WHEEL" | awk '{print $1}')" = "$EXPECTED_ARTIFACT_SHA" ] || fail artifact-sha
@@ -135,7 +135,7 @@ expect_g3_hash(){ [ "$(sudo sha256sum "$1"|awk '{print $1}')" = "$2" ] || fail "
 expect_g3_hash /etc/aetheris/node/identity.env 9cc789d4df7aaea3849628c19a7f58bce7622f4bb7e859327f859ae6cadd676e
 expect_g3_hash /etc/aetheris/node/capabilities.json 3ede11bbbdd1075516ae93b6d700eca52c8d1591401b5753eea72b8e8e0c8acb
 expect_g3_hash /usr/lib/tmpfiles.d/aetheris.conf d9375b8fd53be99eee8bc6bcde02663c540408983f88eedba4eb13c97bc0991d
-verify_installed(){ local root="$1"; expect_meta "$root" root:aetheris\ 755; expect_meta "$root/manifest.json" root:aetheris\ 640; expect_meta "$root/metadata/requirements.lock" root:aetheris\ 640; expect_meta "$root/$EXEC_REL" root:aetheris\ 755; [ "$(sudo sha256sum "$root/manifest.json"|awk '{print $1}')" = "$MANIFEST_SHA" ] || fail installed-manifest-sha; [ "$(sudo sha256sum "$root/metadata/requirements.lock"|awk '{print $1}')" = "$EXPECTED_LOCK_SHA" ] || fail installed-lock-sha; [ "$(sudo sha256sum "$root/metadata/$(basename "$WHEEL")"|awk '{print $1}')" = "$EXPECTED_ARTIFACT_SHA" ] || fail installed-artifact-sha; sudo env AETHERIS_RELEASE_MANIFEST="$root/manifest.json" "$ROOT_DIR/scripts/verify-node-agent-release-contract.sh" >/dev/null || fail installed-manifest-semantics; }
+verify_installed(){ local root="$1"; expect_meta "$root" root:aetheris\ 755; expect_meta "$root/manifest.json" root:aetheris\ 640; expect_meta "$root/metadata/requirements.lock" root:aetheris\ 640; [ "$(sudo sha256sum "$root/manifest.json"|awk '{print $1}')" = "$MANIFEST_SHA" ] || fail installed-manifest-sha; [ "$(sudo sha256sum "$root/metadata/requirements.lock"|awk '{print $1}')" = "$EXPECTED_LOCK_SHA" ] || fail installed-lock-sha; [ "$(sudo sha256sum "$root/metadata/$(basename "$WHEEL")"|awk '{print $1}')" = "$EXPECTED_ARTIFACT_SHA" ] || fail installed-artifact-sha; for runtime_exec in "${EXECUTABLES[@]}"; do expect_meta "$root/$runtime_exec" root:aetheris\ 750; sudo test -x "$root/$runtime_exec" || fail "installed-runtime-executable:$runtime_exec"; done; sudo env AETHERIS_RELEASE_MANIFEST="$root/manifest.json" "$ROOT_DIR/scripts/verify-node-agent-release-contract.sh" >/dev/null || fail installed-manifest-semantics; }
 if sudo test -e "$RELEASE_ROOT"; then
   [ "$CONVERGENCE" = YES ] || fail release-already-present
   verify_installed "$RELEASE_ROOT"; [ -f "$UNIT_PATH" ] || fail unit-absent-in-convergence
@@ -146,9 +146,11 @@ printf 'UTC=%s\nRELEASE_ID=%s\nSTAGED_RELEASE=%s\nMANIFEST_SHA256=%s\nWHEEL_SHA2
 if [ "$LIVE_APPLY" != YES ]; then printf 'VALIDATION_ONLY=PASS\nLIVE_MUTATION=NOT_PERFORMED\nREPORT=%s\n' "$REPORT"; exit 0; fi
 STAGING_ROOT="/opt/aetheris/releases/.staging-$RELEASE_ID-$(date -u +%Y%m%dT%H%M%SZ)-$$"; sudo test ! -e "$STAGING_ROOT" || fail staging-collision
 sudo install -d -o root -g aetheris -m 0755 "$STAGING_ROOT"; sudo cp -a "$STAGED_RELEASE"/. "$STAGING_ROOT"/
-sudo chown -R root:aetheris "$STAGING_ROOT"; sudo find "$STAGING_ROOT" -type d -exec chmod 0755 {} +; sudo find "$STAGING_ROOT" -type f -exec chmod 0640 {} +; sudo chmod 0755 "$STAGING_ROOT/$EXEC_REL"
+sudo chown -R root:aetheris "$STAGING_ROOT"; sudo find "$STAGING_ROOT" -type d -exec chmod 0755 {} +; sudo find "$STAGING_ROOT" -type f -exec chmod 0640 {} +; for runtime_exec in "${EXECUTABLES[@]}"; do sudo chmod 0750 "$STAGING_ROOT/$runtime_exec"; done
 verify_installed "$STAGING_ROOT"; sudo mv -- "$STAGING_ROOT" "$RELEASE_ROOT"; STAGING_ROOT=""; RELEASE_PROMOTED=YES; verify_installed "$RELEASE_ROOT"
 sudo systemd-analyze verify "$UNIT_TMP" || fail unit-verify
+for runtime_exec in "${EXECUTABLES[@]}"; do sudo -u aetheris-node env PYTHONDONTWRITEBYTECODE=1 test -x "$RELEASE_ROOT/$runtime_exec" || fail service-user-runtime-executable; done
+sudo -u aetheris-node env PYTHONDONTWRITEBYTECODE=1 "$RELEASE_ROOT/venv/bin/python" -c 'import aetheris_node_agent, aetheris_node_agent.runner' || fail service-user-runtime-import
 sudo install -o root -g root -m 0644 "$UNIT_TMP" "$UNIT_PATH"; UNIT_INSTALLED=YES; sudo systemctl daemon-reload
 [ "$(sudo stat -c '%U:%G %a' "$UNIT_PATH")" = 'root:root 644' ] || fail unit-metadata
 [ "$(sudo sha256sum "$UNIT_PATH"|awk '{print $1}')" = "$(sha256sum "$UNIT_TMP"|awk '{print $1}')" ] || fail unit-sha

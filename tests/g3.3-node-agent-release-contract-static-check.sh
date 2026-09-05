@@ -47,6 +47,7 @@ grep -Fq 'output-exists' "$BUILDER" || fail builder-immutable-output
 grep -Fq 'release-venv' "$BUILDER" || fail builder-runtime-model
 grep -Fq 'git -C "$SOURCE_DIR" archive' "$BUILDER" || fail builder-clean-source
 grep -Fq 'SOURCE_SNAPSHOT=' "$BUILDER" || fail builder-ephemeral-source
+grep -Fq 'executables' "$BUILDER" || fail builder-executable-contract
 ! grep -Fq 'BUILD_RELEASE/source' "$BUILDER" || fail builder-source-residue
 grep -Fq "#!/bin/sh" "$BUILDER" || fail builder-relocatable-launcher
 grep -Fq 'python3 -m venv --copies' "$BUILDER" || fail builder-relocatable-venv
