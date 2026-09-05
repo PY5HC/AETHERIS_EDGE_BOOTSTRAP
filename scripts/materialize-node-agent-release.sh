@@ -7,6 +7,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STAGED_RELEASE="${AETHERIS_STAGED_RELEASE:-}"
 LIVE_APPLY="${AETHERIS_LIVE_APPLY:-NO}"
 CONVERGENCE="${AETHERIS_CONVERGENCE:-NO}"
+CONVERGENCE_TIMEOUT_SEC="${AETHERIS_CONVERGENCE_TIMEOUT_SEC:-30}"
+CONVERGENCE_POLL_SEC="${AETHERIS_CONVERGENCE_POLL_SEC:-1}"
 EXPECTED_BOOTSTRAP_MAIN="56ab37d5d216c9fab26f97487068d22d8e706286"
 AUTHORITY_TAG="g3.6-final-materializer"
 EXPECTED_MANIFEST_SHA="ffc06dd03e387ee234951926fe0e22822bc3f9cd4365c6548dca639c85bd6daa"
@@ -16,6 +18,10 @@ UNIT_PATH=/etc/systemd/system/aetheris-node.service
 fail(){ printf 'FAIL %s\n' "$1" >&2; exit 1; }
 need(){ command -v "$1" >/dev/null 2>&1 || fail "missing command: $1"; }
 for tool in git python3 sha256sum awk sudo sed find mktemp; do need "$tool"; done
+case "$CONVERGENCE_TIMEOUT_SEC" in ''|*[!0-9]*) fail convergence-timeout-invalid;; esac
+case "$CONVERGENCE_POLL_SEC" in ''|*[!0-9]*) fail convergence-poll-invalid;; esac
+[ "$CONVERGENCE_TIMEOUT_SEC" -gt 0 ] || fail convergence-timeout-invalid
+[ "$CONVERGENCE_POLL_SEC" -gt 0 ] || fail convergence-poll-invalid
 [ -d "$STAGED_RELEASE" ] || fail staged-release
 [ -f "$STAGED_RELEASE/manifest.json" ] || fail staged-manifest
 [ "$(git -C "$ROOT_DIR" branch --show-current)" = main ] || fail repository-branch
@@ -157,16 +163,65 @@ sudo install -o root -g root -m 0644 "$UNIT_TMP" "$UNIT_PATH"; UNIT_INSTALLED=YE
 [ "$(sudo sha256sum "$UNIT_PATH"|awk '{print $1}')" = "$(sha256sum "$UNIT_TMP"|awk '{print $1}')" ] || fail unit-sha
 sudo systemctl enable aetheris-node.service || fail service-enable; UNIT_ENABLED=YES
 sudo systemctl start aetheris-node.service || fail service-start; SERVICE_STARTED=YES
-sudo systemctl is-active --quiet aetheris-node.service || fail service-inactive; sudo systemctl is-enabled --quiet aetheris-node.service || fail service-disabled
-MAIN_PID="$(sudo systemctl show -p MainPID --value aetheris-node.service)"; [ "$MAIN_PID" != 0 ] || fail mainpid
-[ "$(sudo ps -o user= -p "$MAIN_PID"|tr -d ' ')" = aetheris-node ] || fail process-user; [ "$(sudo ps -o group= -p "$MAIN_PID"|tr -d ' ')" = aetheris ] || fail process-group
-GROUPS_LINE="$(sudo awk '/^Groups:/{print $2}' "/proc/$MAIN_PID/status")"; [ "$GROUPS_LINE" = "$(getent group aetheris|cut -d: -f3)" ] || fail process-groups
-sudo ss -ltnH | grep -Eq '[[:space:]]127\.0\.0\.1:8000[[:space:]]' || fail listener; ! sudo ss -ltnH | grep -Eq '[[:space:]](0\.0\.0\.0|\[::\]):8000[[:space:]]' || fail non-loopback-listener
-curl --fail --silent http://127.0.0.1:8000/api/v1/health >/dev/null || fail health; curl --fail --silent http://127.0.0.1:8000/api/v1/health >/dev/null || fail readiness
-expect_meta /run/aetheris/aetheris-node aetheris-node:aetheris\ 750; expect_meta /var/lib/aetheris/node/aetheris-node aetheris-node:aetheris\ 750
-if sudo systemctl --failed --no-legend --plain | grep -q .; then fail post-start-failed-units; fi
-sudo journalctl -u aetheris-node.service -n 1 --no-pager | grep -q . || fail journald
-expect_g3_hash /etc/aetheris/node/identity.env 9cc789d4df7aaea3849628c19a7f58bce7622f4bb7e859327f859ae6cadd676e
-expect_g3_hash /etc/aetheris/node/capabilities.json 3ede11bbbdd1075516ae93b6d700eca52c8d1591401b5753eea72b8e8e0c8acb
-expect_g3_hash /usr/lib/tmpfiles.d/aetheris.conf d9375b8fd53be99eee8bc6bcde02663c540408983f88eedba4eb13c97bc0991d
+service_active(){ sudo systemctl is-active --quiet aetheris-node.service; }
+exact_loopback_listener(){
+  # non-loopback-listener is rejected by the second exact check below.
+  local sockets
+  sockets="$(sudo ss -ltnH)" || return 1
+  printf '%s\n' "$sockets" | awk '$4 == "127.0.0.1:8000" { found=1 } END { exit(found ? 0 : 1) }' || return 1
+  if printf '%s\n' "$sockets" | awk '$4 == "0.0.0.0:8000" || $4 == "[::]:8000" { found=1 } END { exit(found ? 0 : 1) }'; then return 1; fi
+}
+convergence_elapsed(){ CONVERGENCE_ELAPSED_SEC=$(( $(date +%s) - CONVERGENCE_START_EPOCH )); }
+poll_listener(){
+  local deadline now
+  CONVERGENCE_START_EPOCH="$(date +%s)"; deadline=$((CONVERGENCE_START_EPOCH + CONVERGENCE_TIMEOUT_SEC))
+  while :; do
+    if ! service_active; then POST_VALIDATION_FAILURE=service-failed-during-listener; convergence_elapsed; return 1; fi
+    if exact_loopback_listener; then convergence_elapsed; return 0; fi
+    now="$(date +%s)"; [ "$now" -ge "$deadline" ] && break
+    sleep "$CONVERGENCE_POLL_SEC"
+  done
+  convergence_elapsed; POST_VALIDATION_FAILURE=listener-timeout; return 1
+}
+poll_http(){
+  local label="$1" path="$2" deadline now
+  CONVERGENCE_START_EPOCH="$(date +%s)"; deadline=$((CONVERGENCE_START_EPOCH + CONVERGENCE_TIMEOUT_SEC))
+  while :; do
+    if ! service_active; then POST_VALIDATION_FAILURE="service-failed-during-$label"; convergence_elapsed; return 1; fi
+    if curl --fail --silent --show-error --max-time 2 "http://127.0.0.1:8000$path" >/dev/null 2>&1; then convergence_elapsed; return 0; fi
+    now="$(date +%s)"; [ "$now" -ge "$deadline" ] && break
+    sleep "$CONVERGENCE_POLL_SEC"
+  done
+  convergence_elapsed
+  case "$label" in
+    health) POST_VALIDATION_FAILURE=health-timeout ;;
+    readiness) POST_VALIDATION_FAILURE=readiness-timeout ;;
+    *) POST_VALIDATION_FAILURE="$label-timeout" ;;
+  esac
+  return 1
+}
+run_post_mutation_validation(){
+  if ! service_active; then POST_VALIDATION_FAILURE=service-inactive; return 1; fi
+  if ! sudo systemctl is-enabled --quiet aetheris-node.service; then POST_VALIDATION_FAILURE=service-disabled; return 1; fi
+  MAIN_PID="$(sudo systemctl show -p MainPID --value aetheris-node.service)"; [ "$MAIN_PID" != 0 ] || { POST_VALIDATION_FAILURE=mainpid; return 1; }
+  [ "$(sudo ps -o user= -p "$MAIN_PID"|tr -d ' ')" = aetheris-node ] || { POST_VALIDATION_FAILURE=process-user; return 1; }
+  [ "$(sudo ps -o group= -p "$MAIN_PID"|tr -d ' ')" = aetheris ] || { POST_VALIDATION_FAILURE=process-group; return 1; }
+  GROUPS_LINE="$(sudo awk '/^Groups:/{print $2}' "/proc/$MAIN_PID/status")"; [ "$GROUPS_LINE" = "$(getent group aetheris|cut -d: -f3)" ] || { POST_VALIDATION_FAILURE=process-groups; return 1; }
+  poll_listener || return 1
+  poll_http health /api/v1/health || return 1
+  poll_http readiness /api/v1/health || return 1
+  if [ "$(sudo stat -c '%U:%G %a' /run/aetheris/aetheris-node)" != 'aetheris-node:aetheris 750' ]; then POST_VALIDATION_FAILURE=runtime-metadata; return 1; fi
+  if [ "$(sudo stat -c '%U:%G %a' /var/lib/aetheris/node/aetheris-node)" != 'aetheris-node:aetheris 750' ]; then POST_VALIDATION_FAILURE=state-metadata; return 1; fi
+  if sudo systemctl --failed --no-legend --plain | grep -q .; then POST_VALIDATION_FAILURE=post-start-failed-units; return 1; fi
+  sudo journalctl -u aetheris-node.service -n 1 --no-pager | grep -q . || { POST_VALIDATION_FAILURE=journald; return 1; }
+  if [ "$(sudo sha256sum /etc/aetheris/node/identity.env|awk '{print $1}')" != 9cc789d4df7aaea3849628c19a7f58bce7622f4bb7e859327f859ae6cadd676e ]; then POST_VALIDATION_FAILURE=g3-identity-hash; return 1; fi
+  if [ "$(sudo sha256sum /etc/aetheris/node/capabilities.json|awk '{print $1}')" != 3ede11bbbdd1075516ae93b6d700eca52c8d1591401b5753eea72b8e8e0c8acb ]; then POST_VALIDATION_FAILURE=g3-capabilities-hash; return 1; fi
+  if [ "$(sudo sha256sum /usr/lib/tmpfiles.d/aetheris.conf|awk '{print $1}')" != d9375b8fd53be99eee8bc6bcde02663c540408983f88eedba4eb13c97bc0991d ]; then POST_VALIDATION_FAILURE=g3-tmpfiles-hash; return 1; fi
+  return 0
+}
+if ! run_post_mutation_validation; then
+  ROLLBACK_TRIGGER="${POST_VALIDATION_FAILURE:-post-mutation-validation}"
+  rollback
+  exit 1
+fi
 printf 'RELEASE_INSTALLED=YES\nUNIT_INSTALLED=YES\nSERVICE_STARTED=YES\nPOST_START_VALIDATION=PASS\nREPORT=%s\n' "$REPORT" | tee -a "$REPORT"
