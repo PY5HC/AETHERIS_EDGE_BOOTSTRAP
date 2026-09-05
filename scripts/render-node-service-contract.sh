@@ -17,7 +17,7 @@ entry = data.get('entrypoint', {})
 release_id = data.get('release_id', '')
 relative = entry.get('relative_path', '')
 if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', release_id): raise SystemExit('release id')
-if not re.fullmatch(r'bin/[A-Za-z0-9._/-]+', relative) or '..' in relative: raise SystemExit('entrypoint')
+if not re.fullmatch(r'(?:bin|venv/bin)/[A-Za-z0-9._/-]+', relative) or '..' in relative: raise SystemExit('entrypoint')
 root = f'/opt/aetheris/releases/{release_id}'
 executable = f'{root}/{relative}'
 if not os.path.isfile(executable) or not os.access(executable, os.X_OK): raise SystemExit('executable')

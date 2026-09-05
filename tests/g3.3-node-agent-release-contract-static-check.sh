@@ -16,7 +16,7 @@ grep -Fq '"requires_hash_verification": true' "$TEMPLATE" || fail activation
 ! grep -Eq '/home/py5hc|aetheris-edge-02|machine-id|docker\.sock|DeviceAllow|nvpmodel[[:space:]]+(-m|-f|--force)' "$DOC" "$SCHEMA" "$TEMPLATE" "$VERIFY" || fail machine-specific-or-privileged
 fixture_dir=$(mktemp -d); trap 'rm -rf "$fixture_dir"' EXIT
 rendered="$fixture_dir/manifest.json"
-sed -e 's/@RELEASE_ID@/20260904-node-agent-r1/' -e 's/@SOURCE_COMMIT@/4bb897e6b18644199ac89ad33be9292e7487c37b/' -e 's/@BUILD_TIMESTAMP_UTC@/2026-09-04T20:30:00Z/' -e 's/@PYTHON_VERSION@/3.11.9/' -e 's/@PACKAGE_VERSION@/0.1.0/' -e 's/@ARTIFACT_KIND@/wheel/' -e 's/@ARTIFACT_SHA256@/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' -e 's/@DEPENDENCY_PROVENANCE@/locked-hashes/' -e 's/@LOCK_REFERENCE@/requirements.lock/' -e 's#@ENTRYPOINT_RELATIVE_PATH@#bin/aetheris-node#' -e 's/@RUNNER_KIND@/project-runner/' -e 's#@LIVENESS_PATH@#/api/v1/health#' -e 's#@READINESS_PATH@#/api/v1/health#' -e 's/@GOVERNANCE_REVISION@/ff1318cd8f0a9720f66029e3985d1e5854044128/' -e 's/@GOVERNANCE_VERSION@/1.3.0/' -e 's/@GOVERNANCE_CONTRACT_VERSION@/1.0.0/' "$TEMPLATE" > "$rendered"
+sed -e 's/@RELEASE_ID@/20260904-node-agent-r1/' -e 's/@SOURCE_COMMIT@/4bb897e6b18644199ac89ad33be9292e7487c37b/' -e 's/@BUILD_TIMESTAMP_UTC@/2026-09-04T20:30:00Z/' -e 's/@PYTHON_VERSION@/3.11.9/' -e 's/@PACKAGE_VERSION@/0.1.0/' -e 's/@ARTIFACT_KIND@/wheel/' -e 's/@ARTIFACT_SHA256@/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/' -e 's/@DEPENDENCY_PROVENANCE@/locked-hashes/' -e 's/@LOCK_REFERENCE@/requirements.lock/' -e 's#@ENTRYPOINT_RELATIVE_PATH@#bin/aetheris-node#' -e 's/@RUNNER_KIND@/project-runner/' -e 's/@RUNTIME_MODEL@/release-venv/' -e 's#@PYTHON_EXECUTABLE@#venv/bin/python#' -e 's#@LIVENESS_PATH@#/api/v1/health#' -e 's#@READINESS_PATH@#/api/v1/health#' -e 's/@GOVERNANCE_REVISION@/ff1318cd8f0a9720f66029e3985d1e5854044128/' -e 's/@GOVERNANCE_VERSION@/1.3.0/' -e 's/@GOVERNANCE_CONTRACT_VERSION@/1.0.0/' "$TEMPLATE" > "$rendered"
 AETHERIS_RELEASE_MANIFEST="$rendered" "$VERIFY" >/dev/null || fail rendered-valid
 cp "$rendered" "$fixture_dir/bad.json"; sed -i 's/"repository": "PY5HC\/AETHERIS_NODE_AGENT"/"repository": "other"/' "$fixture_dir/bad.json"
 if AETHERIS_RELEASE_MANIFEST="$fixture_dir/bad.json" "$VERIFY" >/dev/null 2>&1; then fail wrong-repository-accepted; fi
@@ -40,10 +40,18 @@ grep -Fq 'AETHERIS_RELEASE_OUTPUT' "$BUILDER" || fail builder-output-input
 grep -Fq 'requirements.lock' "$BUILDER" || fail builder-lock
 grep -Fq 'PY5HC/AETHERIS_NODE_AGENT' "$BUILDER" || fail builder-repository
 grep -Fq 'EXPECTED_GOVERNANCE' "$BUILDER" || fail builder-governance
-grep -Fq '"kind": "wheel"' "$BUILDER" || fail builder-artifact
+grep -Fq '"kind":"wheel"' "$BUILDER" || fail builder-artifact
 grep -Fq 'python3 -m pip wheel --no-deps' "$BUILDER" || fail builder-wheel
 grep -Fq 'realpath -m' "$BUILDER" || fail builder-path-resolution
-grep -Fq 'release id already exists' "$BUILDER" || fail builder-immutable-output
+grep -Fq 'output-exists' "$BUILDER" || fail builder-immutable-output
+grep -Fq 'release-venv' "$BUILDER" || fail builder-runtime-model
+grep -Fq 'git -C "$SOURCE_DIR" archive' "$BUILDER" || fail builder-clean-source
+grep -Fq "#!/bin/sh" "$BUILDER" || fail builder-relocatable-launcher
+grep -Fq 'python3 -m venv --copies' "$BUILDER" || fail builder-relocatable-venv
+grep -Fq 'VENV_BIN=' "$BUILDER" || fail builder-sibling-interpreter-launcher
+grep -Fq 'RUNTIME_MODEL=release-venv' "$BUILDER" || fail builder-runtime-output
+! grep -Eq 'pip install.*--target' "$BUILDER" || fail builder-nonrelocatable-path
+grep -Fq 'live-output' "$BUILDER" || fail builder-live-output-guard
 if grep -Eq 'systemctl (enable|start|restart|daemon-reload)|useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)' "$BUILDER"; then fail builder-live-mutation; fi
 pass 'repository-only release builder boundary'
 actual=$(git -C "$ROOT_DIR" ls-files --stage -- scripts/build-node-agent-release.sh | awk 'NR==1{print $1}')
