@@ -8,11 +8,15 @@ bash -n "$M" || fail materializer-syntax
 T="$ROOT_DIR/templates/aetheris-node.service.g3.6.template"
 D="$ROOT_DIR/docs/G3.6-node-service-materialization.md"
 for needle in 'User=aetheris-node' 'Group=aetheris' 'RuntimeDirectory=aetheris/aetheris-node' 'RuntimeDirectoryMode=0750' 'StateDirectory=aetheris/node/aetheris-node' 'StateDirectoryMode=0750' 'Restart=on-failure' 'RestartSec=10s' 'StartLimitIntervalSec=60s' 'StartLimitBurst=5' 'StandardOutput=journal' 'StandardError=journal' 'EnvironmentFile=/etc/aetheris/node/identity.env'; do grep -Fqx "$needle" "$T" || fail "template $needle"; done
+grep -Fq 'ConditionPathExists=@RELEASE_EXECUTABLE@' "$T" || fail valid-condition
+! grep -Fq 'ConditionPathIsExecutable=' "$T" || fail unsupported-condition
+grep -Fq '[Install]' "$T" || fail install-section
+grep -Fq 'WantedBy=multi-user.target' "$T" || fail boot-enable
 grep -Fq '127.0.0.1' "$T" || fail loopback
 grep -Fq 'activation' "$D" || true
 ! grep -Eq 'docker\.sock|DeviceAllow=|DevicePolicy=|^PrivateDevices=yes$|^User=root$|^Group=docker$|/home/py5hc|machine-id|aetheris-edge-02' "$T" || fail unsafe-template
 ! grep -Eq 'systemctl (enable|start|restart|daemon-reload)|useradd|groupadd|mkdir|chown|chmod|apt|nvpmodel[[:space:]]+(-m|-f|--force)' "$ROOT_DIR/scripts/render-node-service-contract.sh" "$ROOT_DIR/scripts/verify-node-service-materialization.sh" || fail live-mutation
-! grep -Eq 'useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)|sudoers|NOPASSWD' "$M" || fail forbidden-authority
+! grep -Eq 'useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)|sudoers|NOPASSWD|/home/' "$M" || fail forbidden-authority
 grep -Fq 'AETHERIS_LIVE_APPLY=YES' "$M" || fail explicit-live-gate
 grep -Fq 'release-already-present' "$M" || fail immutable-release
 grep -Fq 'nvpmodel -q' "$M" || fail power-preflight
@@ -35,6 +39,8 @@ grep -Fq 'origin/main' "$M" || fail remote-authority
 grep -Fq 'repository-authority-delta' "$M" || fail authority-delta
 grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
 grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
+grep -Fq '20260905-node-agent-r2' "$M" || fail corrected-release-authority
+grep -Fq '4774a627bde109b1908a609277c08cf6e75fdcd7288dfecb4aa368fae32a3c3e' "$M" || fail corrected-manifest-authority
 
 cdi_has_gpu(){ printf '%s\n' "$1" | grep -Eq '^nvidia\.com/gpu='; }
 cdi_has_gpu $'nvidia.com/gpu=0\nnvidia.com/gpu=all' || fail cdi-positive

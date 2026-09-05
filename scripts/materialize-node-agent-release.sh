@@ -9,7 +9,8 @@ LIVE_APPLY="${AETHERIS_LIVE_APPLY:-NO}"
 CONVERGENCE="${AETHERIS_CONVERGENCE:-NO}"
 EXPECTED_BOOTSTRAP_MAIN="56ab37d5d216c9fab26f97487068d22d8e706286"
 AUTHORITY_TAG="g3.6-final-materializer"
-EXPECTED_MANIFEST_SHA="13187d17ad8dd459c67223d9540a99b4f35001a27a7246a67d7ea313e9a600d8"
+EXPECTED_MANIFEST_SHA="4774a627bde109b1908a609277c08cf6e75fdcd7288dfecb4aa368fae32a3c3e"
+EXPECTED_RELEASE_ID="20260905-node-agent-r2"
 EXPECTED_LOCK_SHA="ce7d86147a73c9b701f57a0d7e11f968c9df9eae5c0430a3064171df64033b01"
 UNIT_PATH=/etc/systemd/system/aetheris-node.service
 fail(){ printf 'FAIL %s\n' "$1" >&2; exit 1; }
@@ -23,7 +24,8 @@ if git -C "$ROOT_DIR" rev-parse --verify -q "refs/tags/$AUTHORITY_TAG^{commit}" 
   git -C "$ROOT_DIR" fetch --quiet origin main || fail remote-authority-fetch
   [ "$CURRENT_HEAD" = "$(git -C "$ROOT_DIR" rev-parse origin/main)" ] || fail repository-remote-mismatch
   AUTHORITY_DELTA="$(git -C "$ROOT_DIR" diff --name-only "$AUTHORITY_TAG^{commit}" "$CURRENT_HEAD")"
-  [ "$AUTHORITY_DELTA" = $'scripts/materialize-node-agent-release.sh\ntests/g3.6-node-service-materialization-static-check.sh' ] || fail repository-authority-delta
+  EXPECTED_AUTHORITY_DELTA=$'docs/G3.6-node-service-materialization.md\nschemas/node-agent-release-manifest.schema.json\nscripts/build-node-agent-release.sh\nscripts/materialize-node-agent-release.sh\nscripts/render-node-service-contract.sh\nscripts/verify-node-service-materialization.sh\ntemplates/aetheris-node.service.g3.6.template\ntemplates/node-agent-release-manifest.json.template\ntests/g3.3-node-agent-release-contract-static-check.sh\ntests/g3.6-node-service-materialization-static-check.sh'
+  [ "$AUTHORITY_DELTA" = "$EXPECTED_AUTHORITY_DELTA" ] || fail repository-authority-delta
 else
   [ "$CURRENT_HEAD" = "$EXPECTED_BOOTSTRAP_MAIN" ] || fail repository-authority
 fi
@@ -46,7 +48,9 @@ if g != {'repository':'PY5HC/AETHERIS_GOVERNANCE','revision':'ff1318cd8f0a9720f6
 rid=d.get('release_id','')
 if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}',rid): raise SystemExit('release-id')
 rel=d.get('entrypoint',{}).get('relative_path','')
-if not re.fullmatch(r'bin/[A-Za-z0-9._/-]+',rel) or '..' in rel: raise SystemExit('entrypoint')
+if not re.fullmatch(r'(?:bin|venv/bin)/[A-Za-z0-9._/-]+',rel) or '..' in rel: raise SystemExit('entrypoint')
+if d.get('entrypoint', {}).get('runner_kind') != 'project-runner': raise SystemExit('runner')
+if d.get('runtime') != {'model':'release-venv','python_executable':'venv/bin/python'}: raise SystemExit('runtime')
 if d.get('artifact',{}).get('release_root') != '/opt/aetheris/releases': raise SystemExit('release-root')
 if d.get('health',{}).get('liveness_path') != '/api/v1/health' or d.get('health',{}).get('readiness_path') != '/api/v1/health': raise SystemExit('health')
 if d.get('activation') != {'requires_hash_verification':True,'requires_readiness_probe':True,'rollback_release_required':True}: raise SystemExit('activation')
@@ -54,6 +58,7 @@ print(rid); print(rel); print(d['artifact']['sha256']); print(d['dependencies'][
 PY
 ) || fail manifest-semantics
 RELEASE_ID="${FACTS[0]}"; EXEC_REL="${FACTS[1]}"; EXPECTED_ARTIFACT_SHA="${FACTS[2]}"; LOCK_PROVENANCE="${FACTS[3]}"
+[ "$RELEASE_ID" = "$EXPECTED_RELEASE_ID" ] || fail release-id-authority
 WHEEL="$(find "$STAGED_RELEASE/metadata" -maxdepth 1 -type f -name '*.whl' -print -quit)"; [ -n "$WHEEL" ] || fail wheel
 [ "$(sha256sum "$WHEEL" | awk '{print $1}')" = "$EXPECTED_ARTIFACT_SHA" ] || fail artifact-sha
 LOCK="$STAGED_RELEASE/metadata/requirements.lock"; [ -f "$LOCK" ] || fail lock
@@ -61,7 +66,7 @@ LOCK="$STAGED_RELEASE/metadata/requirements.lock"; [ -f "$LOCK" ] || fail lock
 [ "$(sha256sum "$LOCK" | awk '{print $1}')" = "$EXPECTED_LOCK_SHA" ] || fail lock-sha
 [ -x "$STAGED_RELEASE/$EXEC_REL" ] || fail staged-entrypoint
 RELEASE_ROOT="/opt/aetheris/releases/$RELEASE_ID"
-UNIT_TMP="$(mktemp)"; REPORT="/home/py5hc/aetheris-g3.6-live-apply-$(date -u +%Y%m%dT%H%M%SZ).report"; STAGING_ROOT=""; UNIT_INSTALLED=NO
+UNIT_TMP="$(mktemp)"; REPORT="${AETHERIS_REPORT_PATH:-/tmp/aetheris-g3.6-live-apply-$(date -u +%Y%m%dT%H%M%SZ).report}"; STAGING_ROOT=""; UNIT_INSTALLED=NO
 cleanup(){ if [ -n "$STAGING_ROOT" ]; then sudo rm -rf -- "$STAGING_ROOT" || true; fi; if [ "$UNIT_INSTALLED" = YES ]; then sudo rm -f -- "$UNIT_PATH" || true; sudo systemctl daemon-reload || true; fi; rm -f "$UNIT_TMP"; }
 on_error(){ rc=$?; cleanup; exit "$rc"; }
 trap on_error ERR

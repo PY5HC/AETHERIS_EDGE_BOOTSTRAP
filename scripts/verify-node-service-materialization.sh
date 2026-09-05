@@ -17,7 +17,9 @@ grep -Fqx 'StandardOutput=journal' "$UNIT" || fail stdout
 grep -Fqx 'StandardError=journal' "$UNIT" || fail stderr
 grep -Fqx 'Environment=AETHERIS_NODE_BIND_HOST=127.0.0.1' "$UNIT" || fail bind
 exec_path="$(awk -F= '$1=="ExecStart"{print substr($0,index($0,"=")+1); exit}' "$UNIT")"
-[[ "$exec_path" = /opt/aetheris/releases/*/bin/* ]] || fail exec-path
+grep -Fqx "ConditionPathExists=$exec_path" "$UNIT" || fail condition
+grep -Fqx 'WantedBy=multi-user.target' "$UNIT" || fail install-target
+[[ "$exec_path" = /opt/aetheris/releases/*/venv/bin/* ]] || fail exec-path
 [ -x "$exec_path" ] || fail exec-missing
 ! grep -Eq '@|docker\.sock|^User=root$|^Group=docker$|^SupplementaryGroups=|DeviceAllow=|DevicePolicy=|^PrivateDevices=yes$|LogsDirectory=|/home/|/usr/local/bin/' "$UNIT" || fail unsafe-authority
 printf 'G3_6_NODE_SERVICE_VERIFY=PASS\n'
