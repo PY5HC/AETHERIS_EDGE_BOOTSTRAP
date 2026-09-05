@@ -31,6 +31,8 @@ grep -Fq 'journalctl -u aetheris-node.service' "$M" || fail journald-validation
 grep -Fq 'non-loopback-listener' "$M" || fail loopback-validation
 grep -Fq 'identity.env' "$M" || fail g3-hash-validation
 grep -Fq 'AUTHORITY_TAG=' "$M" || fail authority-tag
+grep -Fq 'origin/main' "$M" || fail remote-authority
+grep -Fq 'repository-authority-delta' "$M" || fail authority-delta
 grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
 grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
 
