@@ -10,6 +10,14 @@ grep -Fq 'EXPECTED_COMMIT=6a1a922d269908a29cbd4b49c27e6a8e7fd10fae' "$APPLY" || 
 grep -Fq -- '-DGGML_CUDA=ON' "$APPLY" || fail cuda
 grep -Fq -- '-DCMAKE_CUDA_ARCHITECTURES=87' "$APPLY" || fail cuda-arch
 grep -Fq -- '-DLLAMA_USE_PREBUILT_UI=OFF' "$APPLY" || fail unpinned-ui
+grep -Fq -- '-DLLAMA_BUILD_TOOLS=ON' "$APPLY" || fail tools
+grep -Fq -- '-DLLAMA_BUILD_EXAMPLES=OFF' "$APPLY" || fail examples
+grep -Fq -- '--target llama-cli llama-server' "$APPLY" || fail targeted-build
+grep -Fq "TARGET_HELP=\$(cmake --build" "$APPLY" || fail pipefail-safe-target-check
+grep -Fq 'CMAKE_INSTALL_RPATH' "$APPLY" || fail relocatable-rpath
+grep -Fq 'ORIGIN' "$APPLY" || fail relocatable-rpath
+grep -Fq 'readelf -d' "$VERIFY" || fail linkage-audit
+grep -Fq 'ffile-prefix-map' "$APPLY" || fail path-normalization
 grep -Eq 'RUNTIME_ROOT.*(/opt/aetheris|/etc/aetheris)' "$APPLY" || fail live-output-guard
 grep -Eq 'BUILD_ROOT.*(/opt/aetheris|/etc/aetheris|/var/lib/aetheris|/run/aetheris)' "$APPLY" || fail live-build-output-guard
 ! grep -Eq 'systemctl|useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)|apt([[:space:]]|$)' "$APPLY" "$VERIFY" || fail mutation
@@ -17,7 +25,7 @@ grep -Eq 'BUILD_ROOT.*(/opt/aetheris|/etc/aetheris|/var/lib/aetheris|/run/aether
 python3 - "$ROOT_DIR/schemas/local-ai-runtime-build-manifest.schema.json" <<'PY'
 import json,sys
 from jsonschema import Draft202012Validator
-s=json.load(open(sys.argv[1])); record={'schema_version':'1.0','runtime':'llama.cpp','source':{'url':'https://github.com/ggml-org/llama.cpp.git','commit':'a'*40,'commit_date':'2026-01-01T00:00:00Z','license':'MIT'},'target':{'architecture':'aarch64','platform':'fixture'},'toolchain':{'compiler':'gcc','compiler_version':'13','cmake':'3','cuda':'13'},'build':{'system':'cmake','flags':['GGML_CUDA=ON']},'artifacts':[{'path':'bin/llama-cli','sha256':'b'*64,'executable':True}]}; assert not list(Draft202012Validator(s).iter_errors(record)); print('MANIFEST_SCHEMA_FIXTURES=PASS')
+s=json.load(open(sys.argv[1])); record={'schema_version':'1.0','runtime':'llama.cpp','source':{'url':'https://github.com/ggml-org/llama.cpp.git','commit':'a'*40,'commit_date':'2026-01-01T00:00:00Z','license':'MIT'},'target':{'architecture':'aarch64','platform':'fixture'},'toolchain':{'compiler':'gcc','compiler_version':'13','cmake':'3','cuda':'13'},'build':{'system':'cmake','flags':['GGML_CUDA=ON','LLAMA_BUILD_TOOLS=ON','LLAMA_BUILD_EXAMPLES=OFF']},'artifacts':[{'path':'bin/llama-cli','sha256':'b'*64,'executable':True}], 'libraries':[{'path':'bin/libggml.so','sha256':'c'*64,'executable':False}]}; assert not list(Draft202012Validator(s).iter_errors(record)); print('MANIFEST_SCHEMA_FIXTURES=PASS')
 PY
 while read -r mode path; do actual=$(git -C "$ROOT_DIR" ls-files --stage -- "$path" | awk 'NR==1{print $1}'); [ "$actual" = "$mode" ] || fail "mode:$path"; done <<'EOF'
 100644 docs/G4.2-llama-cpp-build.md
