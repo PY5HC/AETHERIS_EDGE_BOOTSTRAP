@@ -88,6 +88,7 @@ rollback(){
   if [ "$RELEASE_PROMOTED" = YES ] || [ "$UNIT_INSTALLED" = YES ]; then
     PLATFORM_REGRESSION=PASS
     sudo systemctl is-active --quiet aetheris-node.service && PLATFORM_REGRESSION=FAIL
+    sudo systemctl is-enabled --quiet aetheris-node.service && PLATFORM_REGRESSION=FAIL
     sudo test -e "$UNIT_PATH" && [ "$UNIT_REMOVED" = YES ] && PLATFORM_REGRESSION=FAIL
     [ -e /run/aetheris/aetheris-node ] && PLATFORM_REGRESSION=FAIL
     [ -n "$(sudo systemctl --failed --no-legend --plain)" ] && PLATFORM_REGRESSION=FAIL
