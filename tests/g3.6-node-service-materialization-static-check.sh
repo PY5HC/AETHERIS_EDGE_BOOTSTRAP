@@ -18,5 +18,18 @@ grep -Fq 'release-already-present' "$M" || fail immutable-release
 grep -Fq 'nvpmodel -q' "$M" || fail power-preflight
 grep -Fq 'nvidia-ctk cdi list' "$M" || fail cdi-preflight
 grep -Fq 'failed-units' "$M" || fail failed-unit-preflight
+grep -Fq 'STAGING_ROOT=' "$M" || fail atomic-staging
+grep -Fq 'sudo mv -- "$STAGING_ROOT" "$RELEASE_ROOT"' "$M" || fail atomic-promotion
+grep -Fq 'verify_installed' "$M" || fail post-copy-verification
+grep -Fq 'CONVERGENCE=PASS' "$M" || fail convergence-mode
+grep -Fq 'systemd-analyze verify' "$M" || fail unit-prevalidation
+grep -Fq 'POST_START_VALIDATION=PASS' "$M" || fail post-start-validation
+grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-rollback-state
+grep -Fq 'journalctl -u aetheris-node.service' "$M" || fail journald-validation
+grep -Fq 'non-loopback-listener' "$M" || fail loopback-validation
+grep -Fq 'identity.env' "$M" || fail g3-hash-validation
+grep -Fq 'AUTHORITY_TAG=' "$M" || fail authority-tag
+grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
+grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
 for pair in '100644 docs/G3.6-node-service-materialization.md' '100644 templates/aetheris-node.service.g3.6.template' '100755 scripts/render-node-service-contract.sh' '100755 scripts/verify-node-service-materialization.sh' '100755 scripts/materialize-node-agent-release.sh' '100755 tests/g3.6-node-service-materialization-static-check.sh'; do set -- $pair; mode=$(git -C "$ROOT_DIR" ls-files --stage -- "$2" | awk 'NR==1{print $1}'); [ "$mode" = "$1" ] || fail "mode $2"; done
 echo G3_6_NODE_SERVICE_MATERIALIZATION_STATIC_CHECK=PASS
