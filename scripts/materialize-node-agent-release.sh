@@ -76,7 +76,7 @@ rollback(){
   if [ "$UNIT_INSTALLED" = YES ] && sudo systemctl is-enabled --quiet aetheris-node.service; then sudo systemctl disable aetheris-node.service; UNIT_DISABLED=YES; fi
   if [ "$UNIT_INSTALLED" = YES ] && sudo test -f "$UNIT_PATH" && [ "$(sudo sha256sum "$UNIT_PATH" | awk '{print $1}')" = "$UNIT_TMP_SHA" ]; then sudo rm -f -- "$UNIT_PATH"; UNIT_REMOVED=YES; fi
   if [ "$UNIT_INSTALLED" = YES ] || [ "$UNIT_ENABLED" = YES ]; then sudo systemctl daemon-reload; fi
-  if [ "$SERVICE_STOPPED" = YES ]; then sudo systemctl reset-failed aetheris-node.service; fi
+  if [ "$UNIT_INSTALLED" = YES ]; then sudo systemctl reset-failed aetheris-node.service; fi
   if [ "$RUNTIME_PREEXISTING" = NO ] && sudo test -d /run/aetheris/aetheris-node; then
     if [ -z "$(sudo find /run/aetheris/aetheris-node -mindepth 1 -print -quit)" ]; then sudo rmdir /run/aetheris/aetheris-node; RUNTIME_ACTION=REMOVED_EMPTY_TRANSACTION_LEAF; else RUNTIME_ACTION=RETAINED_NONEMPTY_REVIEW_REQUIRED; fi
   fi
@@ -98,6 +98,8 @@ rollback(){
     sudo /usr/sbin/nvpmodel -q 2>/dev/null | grep -Fq 'NV Power Mode: MAXN_SUPER' || PLATFORM_REGRESSION=FAIL
     sudo /usr/sbin/nvpmodel -q 2>/dev/null | grep -Eq '^2$' || PLATFORM_REGRESSION=FAIL
     sudo nvidia-ctk cdi list 2>/dev/null | grep -Eq '^nvidia\.com/gpu=' || PLATFORM_REGRESSION=FAIL
+    [ "$STATE_ACTION" = RETAINED_NONEMPTY_REVIEW_REQUIRED ] && PLATFORM_REGRESSION=FAIL
+    [ "$RUNTIME_ACTION" = RETAINED_NONEMPTY_REVIEW_REQUIRED ] && PLATFORM_REGRESSION=FAIL
   fi
   ROLLBACK_RESULT=PASS
   [ "$UNIT_INSTALLED" = YES ] && [ "$UNIT_REMOVED" != YES ] && ROLLBACK_RESULT=REVIEW_REQUIRED
