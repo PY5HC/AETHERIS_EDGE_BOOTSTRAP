@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "runtime", "source", "target", "toolchain", "build", "artifacts"],
+  "required": ["schema_version", "runtime", "source", "target", "toolchain", "build", "artifacts", "libraries"],
   "properties": {
     "schema_version": {"const": "1.0"},
     "runtime": {"const": "llama.cpp"},
@@ -10,6 +10,7 @@
     "target": {"type":"object","additionalProperties":false,"required":["architecture","platform"],"properties":{"architecture":{"const":"aarch64"},"platform":{"type":"string","minLength":1}}},
     "toolchain": {"type":"object","additionalProperties":false,"required":["compiler","compiler_version","cmake","cuda"],"properties":{"compiler":{"type":"string"},"compiler_version":{"type":"string"},"cmake":{"type":"string"},"cuda":{"type":"string"}}},
     "build": {"type":"object","additionalProperties":false,"required":["system","flags"],"properties":{"system":{"const":"cmake"},"flags":{"type":"array","items":{"type":"string"},"minItems":1}}},
-    "artifacts": {"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["path","sha256","executable"],"properties":{"path":{"type":"string","pattern":"^(?!/)(?!.*\\.\\.).+$"},"sha256":{"pattern":"^[0-9a-f]{64}$"},"executable":{"type":"boolean"}}}}
+    "artifacts": {"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["path","sha256","executable"],"properties":{"path":{"type":"string","pattern":"^(?!/)(?!.*\\.\\.).+$"},"sha256":{"pattern":"^[0-9a-f]{64}$"},"executable":{"type":"boolean"}}}},
+    "libraries": {"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["path","sha256","executable"],"properties":{"path":{"type":"string","pattern":"^(?!/)(?!.*\\.\\.).+$"},"sha256":{"pattern":"^[0-9a-f]{64}$"},"executable":{"const":false}}}}
   }
 }
