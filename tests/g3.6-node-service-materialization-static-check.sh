@@ -41,6 +41,8 @@ grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
 grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
 grep -Fq '20260905-node-agent-r4' "$M" || fail corrected-release-authority
 grep -Fq 'bfb47c0cfa590c52a8c26e09e2ae1dce4c69bf15b74c06e24241bc49966027ba' "$M" || fail corrected-manifest-authority
+for needle in 'RELEASE_PROMOTED=NO' 'UNIT_ENABLED=NO' 'SERVICE_STARTED=NO' 'UNIT_TMP_SHA=' 'sudo systemctl stop aetheris-node.service' 'sudo systemctl disable aetheris-node.service' 'RELEASE_PRESERVED=YES' 'PLATFORM_REGRESSION=' 'ROLLBACK_RESULT='; do grep -Fq "$needle" "$M" || fail "rollback $needle"; done
+for needle in 'fail unit-verify' 'fail service-enable' 'fail service-start' 'fail listener' 'fail health' 'fail post-start-failed-units'; do grep -Fq "$needle" "$M" || fail "failure-injection phase $needle"; done
 
 cdi_has_gpu(){ printf '%s\n' "$1" | grep -Eq '^nvidia\.com/gpu='; }
 cdi_has_gpu $'nvidia.com/gpu=0\nnvidia.com/gpu=all' || fail cdi-positive

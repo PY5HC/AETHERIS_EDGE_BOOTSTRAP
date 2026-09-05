@@ -66,14 +66,52 @@ LOCK="$STAGED_RELEASE/metadata/requirements.lock"; [ -f "$LOCK" ] || fail lock
 [ "$(sha256sum "$LOCK" | awk '{print $1}')" = "$EXPECTED_LOCK_SHA" ] || fail lock-sha
 [ -x "$STAGED_RELEASE/$EXEC_REL" ] || fail staged-entrypoint
 RELEASE_ROOT="/opt/aetheris/releases/$RELEASE_ID"
-UNIT_TMP="$(mktemp)"; REPORT="${AETHERIS_REPORT_PATH:-/tmp/aetheris-g3.6-live-apply-$(date -u +%Y%m%dT%H%M%SZ).report}"; STAGING_ROOT=""; UNIT_INSTALLED=NO
-cleanup(){ if [ -n "$STAGING_ROOT" ]; then sudo rm -rf -- "$STAGING_ROOT" || true; fi; if [ "$UNIT_INSTALLED" = YES ]; then sudo rm -f -- "$UNIT_PATH" || true; sudo systemctl daemon-reload || true; fi; rm -f "$UNIT_TMP"; }
-on_error(){ rc=$?; cleanup; exit "$rc"; }
+UNIT_TMP="$(mktemp --suffix=.service)"; REPORT="${AETHERIS_REPORT_PATH:-/tmp/aetheris-g3.6-live-apply-$(date -u +%Y%m%dT%H%M%SZ).report}"; STAGING_ROOT=""; RELEASE_PROMOTED=NO; UNIT_INSTALLED=NO; UNIT_ENABLED=NO; SERVICE_STARTED=NO; SERVICE_STOPPED=NO; UNIT_DISABLED=NO; UNIT_REMOVED=NO; STATE_PREEXISTING=NO; RUNTIME_PREEXISTING=NO; STATE_ACTION=NOT_NEEDED; RUNTIME_ACTION=NOT_NEEDED; RELEASE_PRESERVED=NO
+rollback(){
+  set +e
+  [ -n "$STAGING_ROOT" ] && sudo rm -rf -- "$STAGING_ROOT"
+  if [ "$RELEASE_PROMOTED" = YES ] || [ "$UNIT_INSTALLED" = YES ]; then
+    if sudo systemctl is-active --quiet aetheris-node.service; then sudo systemctl stop aetheris-node.service; SERVICE_STOPPED=YES; fi
+  fi
+  if [ "$UNIT_INSTALLED" = YES ] && sudo systemctl is-enabled --quiet aetheris-node.service; then sudo systemctl disable aetheris-node.service; UNIT_DISABLED=YES; fi
+  if [ "$UNIT_INSTALLED" = YES ] && sudo test -f "$UNIT_PATH" && [ "$(sudo sha256sum "$UNIT_PATH" | awk '{print $1}')" = "$UNIT_TMP_SHA" ]; then sudo rm -f -- "$UNIT_PATH"; UNIT_REMOVED=YES; fi
+  if [ "$UNIT_INSTALLED" = YES ] || [ "$UNIT_ENABLED" = YES ]; then sudo systemctl daemon-reload; fi
+  if [ "$SERVICE_STOPPED" = YES ]; then sudo systemctl reset-failed aetheris-node.service; fi
+  if [ "$RUNTIME_PREEXISTING" = NO ] && sudo test -d /run/aetheris/aetheris-node; then
+    if [ -z "$(sudo find /run/aetheris/aetheris-node -mindepth 1 -print -quit)" ]; then sudo rmdir /run/aetheris/aetheris-node; RUNTIME_ACTION=REMOVED_EMPTY_TRANSACTION_LEAF; else RUNTIME_ACTION=RETAINED_NONEMPTY_REVIEW_REQUIRED; fi
+  fi
+  if [ "$STATE_PREEXISTING" = NO ] && sudo test -d /var/lib/aetheris/node/aetheris-node; then
+    if [ -z "$(sudo find /var/lib/aetheris/node/aetheris-node -mindepth 1 -print -quit)" ]; then sudo rmdir /var/lib/aetheris/node/aetheris-node; STATE_ACTION=REMOVED_EMPTY_TRANSACTION_LEAF; else STATE_ACTION=RETAINED_NONEMPTY_REVIEW_REQUIRED; fi
+  fi
+  [ "$RELEASE_PROMOTED" = YES ] && RELEASE_PRESERVED=YES
+  PLATFORM_REGRESSION=NOT_APPLICABLE
+  if [ "$RELEASE_PROMOTED" = YES ] || [ "$UNIT_INSTALLED" = YES ]; then
+    PLATFORM_REGRESSION=PASS
+    sudo systemctl is-active --quiet aetheris-node.service && PLATFORM_REGRESSION=FAIL
+    sudo test -e "$UNIT_PATH" && [ "$UNIT_REMOVED" = YES ] && PLATFORM_REGRESSION=FAIL
+    [ -e /run/aetheris/aetheris-node ] && PLATFORM_REGRESSION=FAIL
+    [ -n "$(sudo systemctl --failed --no-legend --plain)" ] && PLATFORM_REGRESSION=FAIL
+    sudo ss -ltnH | grep -Eq '[[:space:]](:|\])8000[[:space:]]' && PLATFORM_REGRESSION=FAIL
+    sudo sha256sum /etc/aetheris/node/identity.env | grep -Fq 9cc789d4df7aaea3849628c19a7f58bce7622f4bb7e859327f859ae6cadd676e || PLATFORM_REGRESSION=FAIL
+    sudo sha256sum /etc/aetheris/node/capabilities.json | grep -Fq 3ede11bbbdd1075516ae93b6d700eca52c8d1591401b5753eea72b8e8e0c8acb || PLATFORM_REGRESSION=FAIL
+    sudo sha256sum /usr/lib/tmpfiles.d/aetheris.conf | grep -Fq d9375b8fd53be99eee8bc6bcde02663c540408983f88eedba4eb13c97bc0991d || PLATFORM_REGRESSION=FAIL
+    sudo /usr/sbin/nvpmodel -q 2>/dev/null | grep -Fq 'NV Power Mode: MAXN_SUPER' || PLATFORM_REGRESSION=FAIL
+    sudo /usr/sbin/nvpmodel -q 2>/dev/null | grep -Eq '^2$' || PLATFORM_REGRESSION=FAIL
+    sudo nvidia-ctk cdi list 2>/dev/null | grep -Eq '^nvidia\.com/gpu=' || PLATFORM_REGRESSION=FAIL
+  fi
+  ROLLBACK_RESULT=PASS
+  [ "$UNIT_INSTALLED" = YES ] && [ "$UNIT_REMOVED" != YES ] && ROLLBACK_RESULT=REVIEW_REQUIRED
+  [ "$PLATFORM_REGRESSION" = FAIL ] && ROLLBACK_RESULT=FAIL
+  printf 'ROLLBACK_TRIGGER=%s\nRELEASE_PROMOTED=%s\nSERVICE_STARTED=%s\nSERVICE_STOPPED=%s\nUNIT_DISABLED=%s\nUNIT_REMOVED=%s\nSTATE_ACTION=%s\nRUNTIME_ACTION=%s\nPLATFORM_REGRESSION=%s\nRELEASE_PRESERVED=%s\nROLLBACK_RESULT=%s\n' "$ROLLBACK_TRIGGER" "$RELEASE_PROMOTED" "$SERVICE_STARTED" "$SERVICE_STOPPED" "$UNIT_DISABLED" "$UNIT_REMOVED" "$STATE_ACTION" "$RUNTIME_ACTION" "$PLATFORM_REGRESSION" "$RELEASE_PRESERVED" "$ROLLBACK_RESULT" | tee -a "$REPORT"
+  rm -f "$UNIT_TMP"
+}
+on_error(){ rc=$?; ROLLBACK_TRIGGER="${ROLLBACK_TRIGGER:-line-$LINENO}"; rollback; exit "$rc"; }
 trap on_error ERR
 trap 'rm -f "$UNIT_TMP"' EXIT
 sed "s#@RELEASE_ROOT@#$RELEASE_ROOT#g; s#@RELEASE_EXECUTABLE@#$RELEASE_ROOT/$EXEC_REL#g" "$ROOT_DIR/templates/aetheris-node.service.g3.6.template" > "$UNIT_TMP"
 ! grep -Fq '@' "$UNIT_TMP" || fail unresolved-unit
 grep -Fqx "ExecStart=$RELEASE_ROOT/$EXEC_REL" "$UNIT_TMP" || fail unit-exec
+UNIT_TMP_SHA="$(sha256sum "$UNIT_TMP" | awk '{print $1}')"
 sudo -v || fail sudo-auth
 sudo -n true || fail authenticated-sudo-required
 expect_meta(){ [ "$(sudo stat -c '%U:%G %a' "$1")" = "$2" ] || fail "metadata:$1"; }
@@ -107,11 +145,13 @@ if [ "$LIVE_APPLY" != YES ]; then printf 'VALIDATION_ONLY=PASS\nLIVE_MUTATION=NO
 STAGING_ROOT="/opt/aetheris/releases/.staging-$RELEASE_ID-$(date -u +%Y%m%dT%H%M%SZ)-$$"; sudo test ! -e "$STAGING_ROOT" || fail staging-collision
 sudo install -d -o root -g aetheris -m 0755 "$STAGING_ROOT"; sudo cp -a "$STAGED_RELEASE"/. "$STAGING_ROOT"/
 sudo chown -R root:aetheris "$STAGING_ROOT"; sudo find "$STAGING_ROOT" -type d -exec chmod 0755 {} +; sudo find "$STAGING_ROOT" -type f -exec chmod 0640 {} +; sudo chmod 0755 "$STAGING_ROOT/$EXEC_REL"
-verify_installed "$STAGING_ROOT"; sudo mv -- "$STAGING_ROOT" "$RELEASE_ROOT"; STAGING_ROOT=""; verify_installed "$RELEASE_ROOT"
-sudo install -o root -g root -m 0644 "$UNIT_TMP" "$UNIT_PATH"; UNIT_INSTALLED=YES; sudo systemd-analyze verify "$UNIT_PATH" || fail unit-verify; sudo systemctl daemon-reload
+verify_installed "$STAGING_ROOT"; sudo mv -- "$STAGING_ROOT" "$RELEASE_ROOT"; STAGING_ROOT=""; RELEASE_PROMOTED=YES; verify_installed "$RELEASE_ROOT"
+sudo systemd-analyze verify "$UNIT_TMP" || fail unit-verify
+sudo install -o root -g root -m 0644 "$UNIT_TMP" "$UNIT_PATH"; UNIT_INSTALLED=YES; sudo systemctl daemon-reload
 [ "$(sudo stat -c '%U:%G %a' "$UNIT_PATH")" = 'root:root 644' ] || fail unit-metadata
 [ "$(sudo sha256sum "$UNIT_PATH"|awk '{print $1}')" = "$(sha256sum "$UNIT_TMP"|awk '{print $1}')" ] || fail unit-sha
-sudo systemctl enable --now aetheris-node.service || fail service-start
+sudo systemctl enable aetheris-node.service || fail service-enable; UNIT_ENABLED=YES
+sudo systemctl start aetheris-node.service || fail service-start; SERVICE_STARTED=YES
 sudo systemctl is-active --quiet aetheris-node.service || fail service-inactive; sudo systemctl is-enabled --quiet aetheris-node.service || fail service-disabled
 MAIN_PID="$(sudo systemctl show -p MainPID --value aetheris-node.service)"; [ "$MAIN_PID" != 0 ] || fail mainpid
 [ "$(sudo ps -o user= -p "$MAIN_PID"|tr -d ' ')" = aetheris-node ] || fail process-user; [ "$(sudo ps -o group= -p "$MAIN_PID"|tr -d ' ')" = aetheris ] || fail process-group
