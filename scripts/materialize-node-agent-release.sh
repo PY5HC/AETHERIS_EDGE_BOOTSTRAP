@@ -20,7 +20,10 @@ for tool in git python3 sha256sum awk sudo sed find mktemp; do need "$tool"; don
 [ "$(git -C "$ROOT_DIR" branch --show-current)" = main ] || fail repository-branch
 CURRENT_HEAD="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 if git -C "$ROOT_DIR" rev-parse --verify -q "refs/tags/$AUTHORITY_TAG^{commit}" >/dev/null; then
-  [ "$CURRENT_HEAD" = "$(git -C "$ROOT_DIR" rev-parse "$AUTHORITY_TAG^{commit}")" ] || fail repository-authority-tag
+  git -C "$ROOT_DIR" fetch --quiet origin main || fail remote-authority-fetch
+  [ "$CURRENT_HEAD" = "$(git -C "$ROOT_DIR" rev-parse origin/main)" ] || fail repository-remote-mismatch
+  AUTHORITY_DELTA="$(git -C "$ROOT_DIR" diff --name-only "$AUTHORITY_TAG^{commit}" "$CURRENT_HEAD")"
+  [ "$AUTHORITY_DELTA" = $'scripts/materialize-node-agent-release.sh\ntests/g3.6-node-service-materialization-static-check.sh' ] || fail repository-authority-delta
 else
   [ "$CURRENT_HEAD" = "$EXPECTED_BOOTSTRAP_MAIN" ] || fail repository-authority
 fi
