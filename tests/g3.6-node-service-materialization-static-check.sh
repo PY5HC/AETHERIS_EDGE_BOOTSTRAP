@@ -17,6 +17,8 @@ grep -Fq 'AETHERIS_LIVE_APPLY=YES' "$M" || fail explicit-live-gate
 grep -Fq 'release-already-present' "$M" || fail immutable-release
 grep -Fq 'nvpmodel -q' "$M" || fail power-preflight
 grep -Fq 'nvidia-ctk cdi list' "$M" || fail cdi-preflight
+grep -Fq 'nvidia\.com/gpu=' "$M" || fail cdi-gpu-namespace
+! grep -Fq 'grep -q NVIDIA' "$M" || fail cdi-brand-text
 grep -Fq 'failed-units' "$M" || fail failed-unit-preflight
 grep -Fq 'STAGING_ROOT=' "$M" || fail atomic-staging
 grep -Fq 'sudo mv -- "$STAGING_ROOT" "$RELEASE_ROOT"' "$M" || fail atomic-promotion
@@ -31,5 +33,14 @@ grep -Fq 'identity.env' "$M" || fail g3-hash-validation
 grep -Fq 'AUTHORITY_TAG=' "$M" || fail authority-tag
 grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
 grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
+
+cdi_has_gpu(){ printf '%s\n' "$1" | grep -Eq '^nvidia\.com/gpu='; }
+cdi_has_gpu $'nvidia.com/gpu=0\nnvidia.com/gpu=all' || fail cdi-positive
+cdi_has_gpu $'nvidia.com/pva=0\nnvidia.com/pva=all' && fail cdi-pva-only
+cdi_has_gpu $'vendor/gpu=0\nother/device=all' && fail cdi-unrelated
+cdi_has_gpu "" && fail cdi-empty-fixture
+cdi_query_nonzero(){ return 1; }
+if cdi_query_nonzero; then fail cdi-nonzero-fixture; fi
+echo PASS CDI GPU namespace fixtures
 for pair in '100644 docs/G3.6-node-service-materialization.md' '100644 templates/aetheris-node.service.g3.6.template' '100755 scripts/render-node-service-contract.sh' '100755 scripts/verify-node-service-materialization.sh' '100755 scripts/materialize-node-agent-release.sh' '100755 tests/g3.6-node-service-materialization-static-check.sh'; do set -- $pair; mode=$(git -C "$ROOT_DIR" ls-files --stage -- "$2" | awk 'NR==1{print $1}'); [ "$mode" = "$1" ] || fail "mode $2"; done
 echo G3_6_NODE_SERVICE_MATERIALIZATION_STATIC_CHECK=PASS
