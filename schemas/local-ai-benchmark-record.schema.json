@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aetheris.invalid/schemas/local-ai-benchmark-record-1.0.json",
+  "title": "AETHERIS Local AI benchmark record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "benchmark_id", "timestamp", "node_id", "model_id", "artifact_digest", "quantization", "model_role", "runtime_backend", "runtime_version", "hardware", "input", "measurements", "result"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "benchmark_id": {"type": "string", "minLength": 1},
+    "timestamp": {"type": "string", "format": "date-time"},
+    "node_id": {"type": "string", "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "artifact_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "quantization": {"type": "string", "minLength": 1},
+    "model_role": {"enum": ["generation", "embedding", "reranking", "classification", "experimental"]},
+    "runtime_backend": {"type": "string", "minLength": 1},
+    "runtime_version": {"type": "string", "minLength": 1},
+    "hardware": {"type": "object", "additionalProperties": false, "required": ["platform", "architecture", "power_profile"], "properties": {"platform": {"type": "string", "minLength": 1}, "architecture": {"const": "aarch64"}, "power_profile": {"type": "string", "minLength": 1}}},
+    "input": {"type": "object", "additionalProperties": false, "required": ["prompt_tokens", "context_size"], "properties": {"prompt_tokens": {"type": "integer", "minimum": 0}, "context_size": {"type": "integer", "minimum": 0}}},
+    "measurements": {"type": "object", "additionalProperties": false, "required": ["load_time", "time_to_first_token", "generated_tokens", "tokens_per_second", "ram_baseline", "ram_peak", "cpu_utilization", "gpu_utilization", "temperature", "power"], "properties": {"load_time": {"type": "number", "minimum": 0}, "time_to_first_token": {"type": "number", "minimum": 0}, "generated_tokens": {"type": "integer", "minimum": 0}, "tokens_per_second": {"type": "number", "minimum": 0}, "ram_baseline": {"type": "number", "minimum": 0}, "ram_peak": {"type": "number", "minimum": 0}, "cpu_utilization": {"type": "number", "minimum": 0, "maximum": 100}, "gpu_utilization": {"type": "number", "minimum": 0, "maximum": 100}, "temperature": {"type": "number", "minimum": 0}, "power": {"type": "number", "minimum": 0}}},
+    "result": {"type": "object", "additionalProperties": false, "required": ["status", "failure_reason"], "properties": {"status": {"enum": ["PASS", "FAIL"]}, "failure_reason": {"type": ["string", "null"]}}}
+  }
+}

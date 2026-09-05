@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://aetheris.invalid/schemas/local-ai-model-record-1.0.json",
+  "title": "AETHERIS Local AI model record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_id", "model_role", "upstream_model", "upstream_revision", "source_uri", "license", "artifact_format", "artifact_digest", "model_digest", "parameter_count", "quantization", "runtime_backend", "runtime_version", "acquired_at", "validated_at", "hardware_class", "validation_status"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "model_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$"},
+    "model_role": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["generation", "embedding", "reranking", "classification", "experimental"]}},
+    "upstream_model": {"type": "string", "minLength": 1},
+    "upstream_revision": {"type": "string", "minLength": 1},
+    "source_uri": {"type": "string", "minLength": 1},
+    "license": {"type": "string", "minLength": 1},
+    "artifact_format": {"enum": ["gguf", "safetensors", "onnx", "engine", "other"]},
+    "artifact_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "model_digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "parameter_count": {"type": "integer", "minimum": 1},
+    "quantization": {"type": "string", "minLength": 1},
+    "runtime_backend": {"type": "string", "minLength": 1},
+    "runtime_version": {"type": "string", "minLength": 1},
+    "acquired_at": {"type": "string", "format": "date-time"},
+    "validated_at": {"type": "string", "format": "date-time"},
+    "hardware_class": {"enum": ["LOCAL_AI_SMALL", "LOCAL_AI_MEDIUM", "LOCAL_AI_EXPERIMENTAL"]},
+    "validation_status": {"enum": ["UNVALIDATED", "VALIDATED", "REJECTED", "RETIRED"]}
+  }
+}
