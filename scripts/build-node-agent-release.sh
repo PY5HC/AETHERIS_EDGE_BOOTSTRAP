@@ -14,7 +14,7 @@ need(){ command -v "$1" >/dev/null 2>&1 || fail "missing command: $1"; }
 [ -d "$SOURCE_DIR/.git" ] || fail source-checkout
 if [ -z "$RELEASE_OUTPUT" ] || [ -z "$RELEASE_ID" ]; then fail required-input; fi
 case "$RELEASE_ID" in *[!A-Za-z0-9._-]*|'') fail release-id;; esac
-for tool in git python3 sha256sum install mktemp realpath find tar; do need "$tool"; done
+for tool in git python3 sha256sum install mktemp realpath find tar rg; do need "$tool"; done
 RELEASE_OUTPUT="$(realpath -m "$RELEASE_OUTPUT")"
 case "$RELEASE_OUTPUT" in /opt|/opt/*|/etc|/etc/*|/var|/var/*|/run|/run/*|/home|/home/*) fail live-output;; esac
 SOURCE_REMOTE="$(git -C "$SOURCE_DIR" remote get-url origin 2>/dev/null || true)"
@@ -30,13 +30,14 @@ PY
 [ -f "$SOURCE_DIR/requirements.lock" ] || fail lock-missing
 LOCK_SHA="$(sha256sum "$SOURCE_DIR/requirements.lock"|awk '{print $1}')"; [ "$LOCK_SHA" = "$EXPECTED_LOCK_SHA" ] || fail lock-sha
 BUILD_DIR="$(mktemp -d)"; trap 'rm -rf "$BUILD_DIR"' EXIT
-python3 -m pip wheel --no-deps --wheel-dir "$BUILD_DIR/wheels" "$SOURCE_DIR"
+SOURCE_SNAPSHOT="$BUILD_DIR/source"; mkdir -p "$SOURCE_SNAPSHOT"
+git -C "$SOURCE_DIR" archive "$EXPECTED_COMMIT" | tar -x -C "$SOURCE_SNAPSHOT"
+python3 -m pip wheel --no-deps --wheel-dir "$BUILD_DIR/wheels" "$SOURCE_SNAPSHOT"
 WHEEL="$(find "$BUILD_DIR/wheels" -maxdepth 1 -type f -name 'aetheris_node_agent-*.whl' -print -quit)"; [ -n "$WHEEL" ] || fail wheel
-BUILD_RELEASE="$BUILD_DIR/release/$RELEASE_ID"; mkdir -p "$BUILD_RELEASE/metadata" "$BUILD_RELEASE/source"
+BUILD_RELEASE="$BUILD_DIR/release/$RELEASE_ID"; mkdir -p "$BUILD_RELEASE/metadata"
 python3 -m venv --copies "$BUILD_RELEASE/venv"
 "$BUILD_RELEASE/venv/bin/python" -m pip install --require-hashes -r "$SOURCE_DIR/requirements.lock"
 "$BUILD_RELEASE/venv/bin/python" -m pip install --no-deps "$WHEEL"
-git -C "$SOURCE_DIR" archive "$EXPECTED_COMMIT" | tar -x -C "$BUILD_RELEASE/source"
 EXEC_REL=venv/bin/aetheris-node-agent; EXEC="$BUILD_RELEASE/$EXEC_REL"; PYTHON_EXEC="$BUILD_RELEASE/venv/bin/python"
 [ -x "$EXEC" ] || fail entrypoint
 [ -x "$PYTHON_EXEC" ] || fail interpreter
@@ -49,6 +50,12 @@ exec "$VENV_BIN/python" -m aetheris_node_agent.runner "$@"
 SH
 chmod 0755 "$EXEC"
 grep -Fqx '#!/bin/sh' "$EXEC" || fail relocatable-shebang
+# A venv's installer/dependency console scripts embed the build-time venv
+# path. They are not runtime authority; remove them so no shipped launcher
+# can refer to the disposable build root.
+find "$BUILD_RELEASE/venv/bin" -maxdepth 1 -type f ! -name 'python' ! -name 'python3' ! -name 'python[0-9]*' ! -name 'aetheris-node-agent' -delete
+find "$BUILD_RELEASE/venv/bin" -maxdepth 1 -type l ! -name 'python' ! -name 'python3' ! -name 'python[0-9]*' ! -name 'aetheris-node-agent' -delete
+! rg -n -a '^#!.*(/tmp|/home)' "$BUILD_RELEASE/venv/bin" || fail build-path-in-launcher
 ARTIFACT_NAME="$(basename "$WHEEL")"; install -m 0644 "$SOURCE_DIR/requirements.lock" "$BUILD_RELEASE/metadata/requirements.lock"; install -m 0644 "$WHEEL" "$BUILD_RELEASE/metadata/$ARTIFACT_NAME"
 ARTIFACT_SHA="$(sha256sum "$BUILD_RELEASE/metadata/$ARTIFACT_NAME"|awk '{print $1}')"; BUILD_TIMESTAMP_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"; PACKAGE_VERSION="$(python3 - "$SOURCE_DIR/pyproject.toml" <<'PY'
 import sys, tomllib

@@ -39,8 +39,8 @@ grep -Fq 'origin/main' "$M" || fail remote-authority
 grep -Fq 'repository-authority-delta' "$M" || fail authority-delta
 grep -Fq 'UNIT_INSTALLED=YES' "$M" || fail unit-transaction-state
 grep -Fq 'sudo rm -f -- "$UNIT_PATH"' "$M" || fail unit-rollback
-grep -Fq '20260905-node-agent-r2' "$M" || fail corrected-release-authority
-grep -Fq '4774a627bde109b1908a609277c08cf6e75fdcd7288dfecb4aa368fae32a3c3e' "$M" || fail corrected-manifest-authority
+grep -Fq '20260905-node-agent-r4' "$M" || fail corrected-release-authority
+grep -Fq 'bfb47c0cfa590c52a8c26e09e2ae1dce4c69bf15b74c06e24241bc49966027ba' "$M" || fail corrected-manifest-authority
 
 cdi_has_gpu(){ printf '%s\n' "$1" | grep -Eq '^nvidia\.com/gpu='; }
 cdi_has_gpu $'nvidia.com/gpu=0\nnvidia.com/gpu=all' || fail cdi-positive

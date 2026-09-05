@@ -46,10 +46,14 @@ grep -Fq 'realpath -m' "$BUILDER" || fail builder-path-resolution
 grep -Fq 'output-exists' "$BUILDER" || fail builder-immutable-output
 grep -Fq 'release-venv' "$BUILDER" || fail builder-runtime-model
 grep -Fq 'git -C "$SOURCE_DIR" archive' "$BUILDER" || fail builder-clean-source
+grep -Fq 'SOURCE_SNAPSHOT=' "$BUILDER" || fail builder-ephemeral-source
+! grep -Fq 'BUILD_RELEASE/source' "$BUILDER" || fail builder-source-residue
 grep -Fq "#!/bin/sh" "$BUILDER" || fail builder-relocatable-launcher
 grep -Fq 'python3 -m venv --copies' "$BUILDER" || fail builder-relocatable-venv
 grep -Fq 'VENV_BIN=' "$BUILDER" || fail builder-sibling-interpreter-launcher
 grep -Fq 'RUNTIME_MODEL=release-venv' "$BUILDER" || fail builder-runtime-output
+grep -Fq 'build-path-in-launcher' "$BUILDER" || fail builder-launcher-scan
+grep -Fq "! -name 'python[0-9]*'" "$BUILDER" || fail builder-runtime-only-venv
 ! grep -Eq 'pip install.*--target' "$BUILDER" || fail builder-nonrelocatable-path
 grep -Fq 'live-output' "$BUILDER" || fail builder-live-output-guard
 if grep -Eq 'systemctl (enable|start|restart|daemon-reload)|useradd|groupadd|docker\.sock|nvpmodel[[:space:]]+(-m|-f|--force)' "$BUILDER"; then fail builder-live-mutation; fi
