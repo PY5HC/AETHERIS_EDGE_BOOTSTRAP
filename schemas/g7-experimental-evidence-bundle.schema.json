@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aetheris://experimental/g7/evidence-bundle",
+  "title": "G7 Experimental Cross-Domain Evidence Bundle",
+  "description": "Non-normative boundary fixture; semantic authorities remain separate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["scientific_evidence", "model_inference", "knowledge_evidence", "llm_interpretation"],
+  "properties": {
+    "scientific_evidence": {"type": "array", "items": {"type": "object"}},
+    "model_inference": {"type": "array", "items": {"type": "object"}},
+    "knowledge_evidence": {"type": "array", "items": {"type": "object"}},
+    "llm_interpretation": {"type": ["object", "null"]}
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "aetheris://experimental/g7/interpretation-bundle",
+  "title": "G7 Experimental Evidence-Grounded Interpretation Bundle",
+  "description": "Non-normative fixture contract. LLM output remains derived interpretation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_state", "answer", "used_evidence_ids", "interpretation_authority"],
+  "properties": {
+    "evidence_state": {"enum": ["SUPPORTED", "INSUFFICIENT", "CONFLICTING", "UNSUPPORTED"]},
+    "answer": {"type": ["string", "null"]},
+    "used_evidence_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "rejected_evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "reason"],
+        "properties": {
+          "id": {"type": "string"},
+          "reason": {"enum": ["IRRELEVANT", "UNTRUSTED_INSTRUCTION", "PROVENANCE_INVALID", "MALFORMED", "DUPLICATE"]}
+        }
+      }
+    },
+    "interpretation_authority": {"const": "NON_AUTHORITATIVE"}
+  }
+}
